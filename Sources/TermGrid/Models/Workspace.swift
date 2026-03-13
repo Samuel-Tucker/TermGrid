@@ -32,11 +32,23 @@ struct Cell: Codable, Identifiable {
     let id: UUID
     var label: String
     var notes: String
+    var workingDirectory: String
 
-    init(id: UUID = UUID(), label: String = "", notes: String = "") {
+    init(id: UUID = UUID(), label: String = "", notes: String = "",
+         workingDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path) {
         self.id = id
         self.label = label
         self.notes = notes
+        self.workingDirectory = workingDirectory
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        label = (try? container.decode(String.self, forKey: .label)) ?? ""
+        notes = (try? container.decode(String.self, forKey: .notes)) ?? ""
+        workingDirectory = (try? container.decode(String.self, forKey: .workingDirectory))
+            ?? FileManager.default.homeDirectoryForCurrentUser.path
     }
 }
 
@@ -55,7 +67,12 @@ struct Workspace: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = (try? container.decode(Int.self, forKey: .schemaVersion)) ?? 1
         gridLayout = (try? container.decode(GridPreset.self, forKey: .gridLayout)) ?? .two_by_two
-        cells = try container.decode([Cell].self, forKey: .cells)
+        var loadedCells = try container.decode([Cell].self, forKey: .cells)
+        let needed = gridLayout.cellCount
+        if loadedCells.count < needed {
+            loadedCells.append(contentsOf: (0..<(needed - loadedCells.count)).map { _ in Cell() })
+        }
+        cells = loadedCells
     }
 
     static var defaultWorkspace: Workspace {
@@ -63,10 +80,6 @@ struct Workspace: Codable {
     }
 
     var visibleCells: [Cell] {
-        let needed = gridLayout.cellCount
-        if cells.count >= needed {
-            return Array(cells.prefix(needed))
-        }
-        return cells + (0..<(needed - cells.count)).map { _ in Cell() }
+        Array(cells.prefix(gridLayout.cellCount))
     }
 }

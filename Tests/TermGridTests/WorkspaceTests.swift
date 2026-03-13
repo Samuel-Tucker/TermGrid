@@ -1,4 +1,5 @@
 @testable import TermGrid
+import Foundation
 import Testing
 
 @Suite("GridPreset Tests")
@@ -54,14 +55,49 @@ struct WorkspaceCodableTests {
         #expect(decoded.gridLayout == GridPreset.two_by_two)
     }
 
-    @Test func visibleCellsPadsWhenTooFew() {
-        let workspace = Workspace(gridLayout: .two_by_two, cells: [Cell()])
-        #expect(workspace.visibleCells.count == 4)
-    }
-
-    @Test func visibleCellsTruncatesWhenTooMany() {
+    @Test func visibleCellsReturnsPrefix() {
         let cells = (0..<9).map { _ in Cell() }
         let workspace = Workspace(gridLayout: .two_by_two, cells: cells)
         #expect(workspace.visibleCells.count == 4)
+    }
+
+    @Test func visibleCellsHandlesUnderfill() {
+        let workspace = Workspace(gridLayout: .two_by_two, cells: [Cell()])
+        #expect(workspace.visibleCells.count == 1)
+    }
+}
+
+@Suite("Cell Codable Tests")
+struct CellCodableTests {
+    @Test func defaultWorkingDirectoryIsHome() {
+        let cell = Cell()
+        #expect(cell.workingDirectory == FileManager.default.homeDirectoryForCurrentUser.path)
+    }
+
+    @Test func roundTripWithWorkingDirectory() throws {
+        let cell = Cell(workingDirectory: "/tmp/test")
+        let data = try JSONEncoder().encode(cell)
+        let decoded = try JSONDecoder().decode(Cell.self, from: data)
+        #expect(decoded.workingDirectory == "/tmp/test")
+    }
+
+    @Test func decodesLegacyCellWithoutWorkingDirectory() throws {
+        let json = """
+        {"id":"00000000-0000-0000-0000-000000000001","label":"test","notes":""}
+        """
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(Cell.self, from: data)
+        #expect(decoded.label == "test")
+        #expect(decoded.workingDirectory == FileManager.default.homeDirectoryForCurrentUser.path)
+    }
+
+    @Test func decodesTolerantlyWithMissingLabel() throws {
+        let json = """
+        {"id":"00000000-0000-0000-0000-000000000001","notes":"hi"}
+        """
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(Cell.self, from: data)
+        #expect(decoded.label == "")
+        #expect(decoded.notes == "hi")
     }
 }
