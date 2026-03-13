@@ -1,5 +1,6 @@
 import SwiftUI
 import MarkdownUI
+import AppKit
 
 struct NotesView: View {
     let notes: String
@@ -22,6 +23,12 @@ struct NotesView: View {
                     .font(.system(size: 12))
                     .scrollContentBackground(.hidden)
                     .focused($editorFocused)
+                    .onAppear {
+                        NSApp.activate(ignoringOtherApps: true)
+                        DispatchQueue.main.async {
+                            editorFocused = true
+                        }
+                    }
                     .onKeyPress(.escape) {
                         commitEdit()
                         return .handled
@@ -46,14 +53,15 @@ struct NotesView: View {
         }
         .padding(8)
         .onChange(of: editorFocused) { _, focused in
-            if !focused && isEditing { commitEdit() }
+            if !focused && isEditing {
+                commitEdit()
+            }
         }
     }
 
     private func startEdit() {
         draft = notes
         isEditing = true
-        editorFocused = true
     }
 
     private func commitEdit() {

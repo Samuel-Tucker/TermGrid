@@ -105,13 +105,16 @@ struct CellView: View {
     }
 
     private func launchTerminal() {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        process.arguments = ["-a", "Terminal"]
-        do {
-            try process.run()
-        } catch {
-            print("[TermGrid] Failed to launch Terminal: \(error)")
+        NSApp.activate(ignoringOtherApps: true)
+
+        let terminalURL = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.activates = true
+
+        NSWorkspace.shared.openApplication(at: terminalURL, configuration: configuration) { _, error in
+            if let error {
+                NSLog("[TermGrid] Failed to open Terminal: \(error.localizedDescription)")
+            }
         }
     }
 }
