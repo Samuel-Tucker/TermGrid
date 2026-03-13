@@ -7,13 +7,15 @@ let package = Package(
         .macOS(.v14)
     ],
     dependencies: [
-        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0")
+        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0"),
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.0.0")
     ],
     targets: [
         .executableTarget(
             name: "TermGrid",
             dependencies: [
-                .product(name: "MarkdownUI", package: "swift-markdown-ui")
+                .product(name: "MarkdownUI", package: "swift-markdown-ui"),
+                .product(name: "SwiftTerm", package: "SwiftTerm")
             ],
             path: "Sources/TermGrid"
         ),
