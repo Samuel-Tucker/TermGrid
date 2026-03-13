@@ -77,4 +77,13 @@ struct WorkspaceStoreTests {
         let loaded = try H.loadWorkspace(using: pm)
         #expect(loaded?.cells[0].label == "Flushed")
     }
+
+    @Test func updateWorkingDirectory() throws {
+        let dir = try H.makeTempDir()
+        defer { H.removeTempDir(dir) }
+        let store = H.makeStore(directory: dir)
+        let cellID = store.workspace.cells[0].id
+        store.updateWorkingDirectory("/tmp/myproject", for: cellID)
+        #expect(store.workspace.cells[0].workingDirectory == "/tmp/myproject")
+    }
 }

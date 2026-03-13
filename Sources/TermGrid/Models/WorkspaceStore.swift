@@ -31,6 +31,12 @@ final class WorkspaceStore {
         scheduleSave()
     }
 
+    func updateWorkingDirectory(_ path: String, for cellID: UUID) {
+        guard let index = workspace.cells.firstIndex(where: { $0.id == cellID }) else { return }
+        workspace.cells[index].workingDirectory = path
+        scheduleSave()
+    }
+
     func setGridPreset(_ preset: GridPreset) {
         workspace.gridLayout = preset
         let needed = preset.cellCount
