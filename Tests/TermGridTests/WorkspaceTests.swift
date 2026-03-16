@@ -2,6 +2,15 @@
 import Foundation
 import Testing
 
+@Suite("ExplorerViewMode Tests")
+struct ExplorerViewModeTests {
+    @Test func rawValueRoundTrip() {
+        #expect(ExplorerViewMode(rawValue: "grid") == .grid)
+        #expect(ExplorerViewMode(rawValue: "list") == .list)
+        #expect(ExplorerViewMode(rawValue: "unknown") == nil)
+    }
+}
+
 @Suite("GridPreset Tests")
 struct GridPresetTests {
     @Test func columnsAndRows() {
@@ -99,5 +108,29 @@ struct CellCodableTests {
         let decoded = try JSONDecoder().decode(Cell.self, from: data)
         #expect(decoded.label == "")
         #expect(decoded.notes == "hi")
+    }
+
+    @Test func defaultExplorerDirectoryIsEmpty() {
+        let cell = Cell()
+        #expect(cell.explorerDirectory == "")
+        #expect(cell.explorerViewMode == .grid)
+    }
+
+    @Test func roundTripWithExplorerFields() throws {
+        let cell = Cell(explorerDirectory: "/tmp/project", explorerViewMode: .list)
+        let data = try JSONEncoder().encode(cell)
+        let decoded = try JSONDecoder().decode(Cell.self, from: data)
+        #expect(decoded.explorerDirectory == "/tmp/project")
+        #expect(decoded.explorerViewMode == .list)
+    }
+
+    @Test func decodesLegacyCellWithoutExplorerFields() throws {
+        let json = """
+        {"id":"00000000-0000-0000-0000-000000000001","label":"test","notes":""}
+        """
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(Cell.self, from: data)
+        #expect(decoded.explorerDirectory == "")
+        #expect(decoded.explorerViewMode == .grid)
     }
 }
