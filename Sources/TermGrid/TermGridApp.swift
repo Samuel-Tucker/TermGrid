@@ -1,12 +1,12 @@
 import SwiftUI
 import AppKit
+import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
 
-        // Set dock icon from bundled resource
         if let iconURL = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
            let icon = NSImage(contentsOf: iconURL) {
             NSApp.applicationIconImage = icon
@@ -14,11 +14,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+@MainActor
+private final class NotificationSubsystem {
+    var manager: NotificationManager?
+    var server: SocketServer?
+}
+
 @main
 struct TermGridApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = WorkspaceStore()
     @State private var sessionManager = TerminalSessionManager()
+    @State private var notificationSubsystem = NotificationSubsystem()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -28,9 +35,9 @@ struct TermGridApp: App {
                 .preferredColorScheme(.dark)
                 .onAppear {
                     NSApp.activate(ignoringOtherApps: true)
+                    startNotificationSubsystem()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
-                    // Only flush persistence on background/inactive — do NOT kill sessions
                     if newPhase == .background || newPhase == .inactive {
                         store.flush()
                     }
@@ -38,8 +45,30 @@ struct TermGridApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     store.flush()
                     sessionManager.killAll()
+                    notificationSubsystem.server?.stop()
                 }
         }
         .defaultSize(width: 900, height: 600)
+    }
+
+    private func startNotificationSubsystem() {
+        guard notificationSubsystem.manager == nil else { return }
+
+        HookInstaller.installIfNeeded()
+        HookInstaller.setupClaudeCodeHooks()
+        HookInstaller.setupCodexHooks()
+
+        let manager = NotificationManager(sessionManager: sessionManager, store: store)
+        manager.setup()
+        notificationSubsystem.manager = manager
+
+        let server = SocketServer()
+        server.start { payload in
+            guard let signal = AgentSignal(from: payload) else { return }
+            Task { @MainActor in
+                manager.postNotification(for: signal)
+            }
+        }
+        notificationSubsystem.server = server
     }
 }
