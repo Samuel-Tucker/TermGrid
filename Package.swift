@@ -17,7 +17,10 @@ let package = Package(
                 .product(name: "MarkdownUI", package: "swift-markdown-ui"),
                 .product(name: "SwiftTerm", package: "SwiftTerm")
             ],
-            path: "Sources/TermGrid"
+            path: "Sources/TermGrid",
+            resources: [
+                .process("Resources")
+            ]
         ),
         .testTarget(
             name: "TermGridTests",
