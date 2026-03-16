@@ -87,7 +87,7 @@ Created in `TermGridApp.init()` with injected references to `WorkspaceStore` and
 1. Look up `Cell` from `WorkspaceStore` by `cellID` for labels
 2. Fire notification:
    - `title` = cell label (e.g. "My Feature Work")
-   - `subtitle` = terminal label (e.g. "Opus — UI Fix")
+   - `subtitle` = `terminalLabel` for primary sessions, `splitTerminalLabel` for split sessions (e.g. "Opus — UI Fix")
    - `body` = summary + "\n\n" + full message
    - `categoryIdentifier` = `"AGENT_MESSAGE"`
    - `userInfo` = `["cellID": uuid, "sessionType": "primary"|"split"]`

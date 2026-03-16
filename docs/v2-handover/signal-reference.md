@@ -1,5 +1,7 @@
 # Agent Signal Reference
 
+> **Note:** This document was initial research. The design spec at `docs/superpowers/specs/2026-03-16-inline-notifications-design.md` supersedes it. Key differences: Stop hooks include `last_assistant_message` directly (no transcript parsing needed), Notification hooks include `message`/`notification_type` fields, and hook scripts should exit 0 with no stdout JSON.
+
 Exact payloads and configuration for Claude Code and Codex CLI hooks.
 
 ## Claude Code
