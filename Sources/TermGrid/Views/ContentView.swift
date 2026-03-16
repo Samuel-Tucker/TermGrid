@@ -61,7 +61,13 @@ struct ContentView: View {
                                         sessionManager.createSplitSession(for: cell.id, workingDirectory: cell.workingDirectory, direction: dir)
                                     },
                                     onUpdateTerminalLabel: { store.updateTerminalLabel($0, for: cell.id) },
-                                    onUpdateSplitTerminalLabel: { store.updateSplitTerminalLabel($0, for: cell.id) }
+                                    onUpdateSplitTerminalLabel: { store.updateSplitTerminalLabel($0, for: cell.id) },
+                                    onUpdateExplorerDirectory: { newPath in
+                                        store.updateExplorerDirectory(newPath, for: cell.id)
+                                    },
+                                    onUpdateExplorerViewMode: { mode in
+                                        store.updateExplorerViewMode(mode, for: cell.id)
+                                    }
                                 )
                                 .frame(width: max(cellWidth, 100), height: max(cellHeight, 100))
                                 .onAppear {
