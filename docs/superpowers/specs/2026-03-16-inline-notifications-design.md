@@ -15,7 +15,7 @@ Add iMessage-style inline notifications to TermGrid so that when AI coding agent
 | Message display | Extract final question/statement for banner; full message in body for expansion | macOS handles truncation/expansion natively, no extension target needed |
 | Multiple notifications | Stack individually, grouped per cell via `threadIdentifier` | Simple, proven (iMessage pattern) |
 | Codex approval-requested gap | Accept limitation; recommend full-auto permissions | Hooks only, no workarounds. OpenAI tracking the issue |
-| Notification tap behavior | Never activates TermGrid | `.customDismissAction` + no-op default action handler |
+| Notification tap behavior | Never activates TermGrid | No-op `UNNotificationDefaultActionIdentifier` handler (macOS does not auto-activate apps on notification tap) |
 | Notification content | Title = cell label, Subtitle = terminal label, Body = summary + full message | Three-tier context: project, agent, message |
 
 ## Component Architecture
@@ -35,19 +35,31 @@ Sources/TermGrid/
 ### AgentSignal
 
 ```swift
+/// Raw payload received from the Unix socket (matches wire protocol)
+struct SocketPayload: Codable {
+    let cellID: String
+    let sessionType: String
+    let agentType: String
+    let eventType: String
+    let message: String
+}
+
+/// Parsed and enriched signal used internally by NotificationManager
 struct AgentSignal {
     let cellID: UUID
-    let sessionType: SessionType   // .primary or .split
-    let agentType: AgentType       // .claudeCode or .codex
-    let eventType: EventType       // .complete or .needsInput
+    let sessionType: SessionType
+    let agentType: AgentType
+    let eventType: EventType
     let fullMessage: String
-    let summary: String
+    let summary: String            // Computed by MessageParser from fullMessage
 }
 
 enum SessionType: String, Codable { case primary, split }
 enum AgentType: String, Codable { case claudeCode, codex }
 enum EventType: String, Codable { case complete, needsInput }
 ```
+
+`SocketServer` decodes `SocketPayload` from the wire JSON, then constructs `AgentSignal` by running `MessageParser.extractSummary(from:)` on the `message` field.
 
 ### SocketServer
 
@@ -94,10 +106,11 @@ Created in `TermGridApp.init()` with injected references to `WorkspaceStore` and
 
 ### MessageParser
 
-Two static methods:
+Single static method:
 
-- `parseClaudeCodeMessage(transcriptPath:)` — reads JSONL transcript, finds last assistant message, extracts final question/statement
-- `parseCodexMessage(lastAssistantMessage:)` — takes Codex direct field, extracts final question/statement
+- `extractSummary(from message: String) -> String` — extracts final question/statement from agent message text
+
+Both Claude Code and Codex provide the agent message directly in their hook payloads (`last_assistant_message` for Stop hooks, `message` for Notification hooks, `last-assistant-message` for Codex). No transcript file parsing is needed.
 
 Extraction logic: scan backwards for a sentence ending with `?`, fall back to last sentence. Simple string processing.
 
@@ -115,7 +128,7 @@ Hook scripts write a single JSON line to the Unix socket:
 }
 ```
 
-Claude Code hooks: script reads hook payload from stdin, extracts transcript path, reads last assistant message from JSONL, writes to socket.
+Claude Code hooks: Stop hook reads `last_assistant_message` from stdin JSON; Notification hook reads `message` from stdin JSON. Both write to socket.
 
 Codex hooks: script reads `last-assistant-message` from JSON argument, writes to socket.
 
@@ -128,17 +141,21 @@ Both scripts read `$TERMGRID_CELL_ID` and `$TERMGRID_SESSION_TYPE` from environm
 ```bash
 #!/bin/bash
 PAYLOAD=$(cat)
-TRANSCRIPT=$(echo "$PAYLOAD" | jq -r '.transcript_path')
 EVENT=$(echo "$PAYLOAD" | jq -r '.hook_event_name')
 
-MESSAGE=$(tail -20 "$TRANSCRIPT" | jq -sr '[.[] | select(.type=="assistant")] | last | .message.content // ""')
+# Both Stop and Notification hooks provide the message directly
+if [ "$EVENT" = "Stop" ]; then
+  MESSAGE=$(echo "$PAYLOAD" | jq -r '.last_assistant_message // ""')
+  EVENT_TYPE="complete"
+else
+  MESSAGE=$(echo "$PAYLOAD" | jq -r '.message // ""')
+  EVENT_TYPE="needsInput"
+fi
 
-if [ "$EVENT" = "Stop" ]; then EVENT_TYPE="complete"; else EVENT_TYPE="needsInput"; fi
-
-echo "{\"cellID\":\"$TERMGRID_CELL_ID\",\"sessionType\":\"$TERMGRID_SESSION_TYPE\",\"agentType\":\"claudeCode\",\"eventType\":\"$EVENT_TYPE\",\"message\":$(echo "$MESSAGE" | jq -Rs .)}" | socat - UNIX-CONNECT:~/.termgrid/notify.sock
-
-echo '{"decision":"approve","reason":"Notification sent"}'
+echo "{\"cellID\":\"$TERMGRID_CELL_ID\",\"sessionType\":\"$TERMGRID_SESSION_TYPE\",\"agentType\":\"claudeCode\",\"eventType\":\"$EVENT_TYPE\",\"message\":$(echo "$MESSAGE" | jq -Rs .)}" | nc -U ~/.termgrid/notify.sock
 ```
+
+No stdout output needed — Stop hooks allow stopping by default (exit 0), Notification hooks are informational only.
 
 ### `~/.termgrid/hooks/termgrid-notify-codex.sh`
 
@@ -147,23 +164,26 @@ echo '{"decision":"approve","reason":"Notification sent"}'
 PAYLOAD="$1"
 MESSAGE=$(echo "$PAYLOAD" | jq -r '.["last-assistant-message"] // ""')
 
-echo "{\"cellID\":\"$TERMGRID_CELL_ID\",\"sessionType\":\"$TERMGRID_SESSION_TYPE\",\"agentType\":\"codex\",\"eventType\":\"complete\",\"message\":$(echo "$MESSAGE" | jq -Rs .)}" | socat - UNIX-CONNECT:~/.termgrid/notify.sock
+echo "{\"cellID\":\"$TERMGRID_CELL_ID\",\"sessionType\":\"$TERMGRID_SESSION_TYPE\",\"agentType\":\"codex\",\"eventType\":\"complete\",\"message\":$(echo "$MESSAGE" | jq -Rs .)}" | nc -U ~/.termgrid/notify.sock
 ```
 
-**External dependency:** `socat` (available via `brew install socat`).
+**Dependencies:** `jq` (for JSON parsing) and `nc` (netcat, pre-installed on macOS). No external dependencies required.
 
 ## Terminal Session Modification
 
-When spawning the PTY process in `TerminalSession`, inject env vars by merging with system environment:
+`TerminalSession.init` gains a `sessionType: SessionType` parameter. `TerminalSessionManager.createSession` passes `.primary`, `createSplitSession` passes `.split`.
+
+When spawning the PTY process, inject env vars using SwiftTerm's `[String]` array format:
 
 ```swift
-var env = ProcessInfo.processInfo.environment
-env["TERMGRID_CELL_ID"] = cellID.uuidString
-env["TERMGRID_SESSION_TYPE"] = sessionType.rawValue  // "primary" or "split"
-// Pass merged env to SwiftTerm process launch
+// SwiftTerm's startProcess takes environment: [String]? (array of "KEY=VALUE" strings)
+// Passing nil uses inherited environment. We build a custom array to add our vars.
+var env = Terminal.getEnvironmentVariables(termName: "xterm-256color")
+env.append("TERMGRID_CELL_ID=\(cellID.uuidString)")
+env.append("TERMGRID_SESSION_TYPE=\(sessionType.rawValue)")
 ```
 
-This preserves PATH and all existing environment variables.
+Note: `Terminal.getEnvironmentVariables()` provides TERM, COLORTERM, LANG, etc. PATH and other vars are set by the `-l` (login shell) flag which sources the user's profile, same as current behavior with `environment: nil`.
 
 ## Hook Installation & Setup
 
@@ -177,7 +197,7 @@ This preserves PATH and all existing environment variables.
 **Recommended permissions guidance:** Setup flow shows:
 > "For best results, run Claude Code with bypass permissions mode, and Codex with --full-auto. This ensures every agent stop is a genuine completion or question."
 
-**socat check:** Setup verifies `socat` is installed, shows install instructions if not.
+**jq check:** Setup verifies `jq` is installed (`which jq`), shows: "Install jq for notifications: `brew install jq`". `nc` (netcat) ships with macOS.
 
 ## Testing Strategy
 
@@ -187,8 +207,6 @@ This preserves PATH and all existing environment variables.
 - Extract question from message ending with `?`
 - Extract last sentence when no question present
 - Handle multi-paragraph, single-word, empty messages
-- Parse Claude Code JSONL transcript
-- Parse Codex direct field
 
 **AgentSignalTests:**
 - Decode valid JSON payload
@@ -213,7 +231,7 @@ This preserves PATH and all existing environment variables.
 ### Integration Test (Manual)
 
 ```bash
-echo '{"cellID":"<uuid>","sessionType":"primary","agentType":"claudeCode","eventType":"complete","message":"Tests pass. Shall I continue?"}' | socat - UNIX-CONNECT:~/.termgrid/notify.sock
+echo '{"cellID":"<uuid>","sessionType":"primary","agentType":"claudeCode","eventType":"complete","message":"Tests pass. Shall I continue?"}' | nc -U ~/.termgrid/notify.sock
 ```
 
 Verify notification appears, reply routes to terminal.
@@ -226,7 +244,7 @@ All 30 existing tests must continue passing. Only V1 modification is env var inj
 
 1. Create `AgentSignal` model
 2. Implement `MessageParser` (independently testable)
-3. Implement `SocketServer` (testable with socat)
+3. Implement `SocketServer` (testable with `nc -U`)
 4. Implement `NotificationManager` (registration, firing, delegate, reply routing)
 5. Modify `TerminalSession` to inject `TERMGRID_CELL_ID` + `TERMGRID_SESSION_TYPE`
 6. Modify `TermGridApp` to wire subsystem on launch
@@ -237,13 +255,24 @@ All 30 existing tests must continue passing. Only V1 modification is env var inj
 
 ## Codex Review
 
-Design cross-checked via Codex 5.3 multi-agent review. Five critical blind spots identified and resolved:
+Design cross-checked via Codex 5.3 multi-agent review (two rounds).
 
+**Round 1 — 5 critical blind spots identified and resolved:**
 1. Added `TERMGRID_SESSION_TYPE` for split terminal routing
 2. Moved NotificationManager creation to `TermGridApp.init()` with dependency injection
 3. Environment variable merge strategy (preserve system env)
 4. Dropped `UNNotificationContentExtension` — use native body expansion instead
 5. Added hook registration/deployment steps
+
+**Round 2 — spec review found 8 issues, all resolved:**
+1. Claude Code Stop hook provides `last_assistant_message` directly — removed transcript parsing
+2. Stop hook output `{"decision":"approve"}` is invalid — hooks just exit 0
+3. Notification hook has `message`/`notification_type` fields — use them directly
+4. SwiftTerm `environment` is `[String]?` not `[String: String]?` — use array format
+5. `TerminalSession` needs `sessionType` parameter — added to init
+6. `summary` not in wire protocol — split into `SocketPayload` (wire) + `AgentSignal` (internal)
+7. `.customDismissAction` doesn't prevent activation — clarified it's the no-op handler
+8. Replaced `socat` with `nc -U` — no external dependencies needed
 
 ## Constraints / Non-Goals
 
