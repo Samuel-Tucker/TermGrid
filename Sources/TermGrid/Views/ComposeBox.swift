@@ -82,9 +82,15 @@ struct ComposeTextEditor: NSViewRepresentable {
         scrollView.borderType = .noBorder
         scrollView.drawsBackground = false
 
-        let textView = ComposeNSTextView()
+        let contentSize = scrollView.contentSize
+        let textView = ComposeNSTextView(frame: NSRect(origin: .zero, size: contentSize))
+        textView.minSize = NSSize(width: 0, height: 28)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        textView.autoresizingMask = [.width]
         textView.isRichText = false
         textView.allowsUndo = true
+        textView.isEditable = true
+        textView.isSelectable = true
         textView.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
         textView.textColor = Theme.composeText
         textView.backgroundColor = .clear
@@ -92,6 +98,7 @@ struct ComposeTextEditor: NSViewRepresentable {
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.textContainerInset = NSSize(width: 4, height: 4)
+        textView.textContainer?.containerSize = NSSize(width: contentSize.width, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.widthTracksTextView = true
         textView.delegate = context.coordinator
         let coordinator = context.coordinator
@@ -133,6 +140,14 @@ struct ComposeTextEditor: NSViewRepresentable {
 // Custom NSTextView that intercepts Shift+Enter
 final class ComposeNSTextView: NSTextView {
     var onShiftEnter: (() -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        super.mouseDown(with: event)
+        // Ensure we claim first responder even if the terminal view fights for it
+        window?.makeFirstResponder(self)
+    }
 
     // In a bundled .app, key events flow through performKeyEquivalent
     // on the responder chain BEFORE keyDown is called. The app's menu

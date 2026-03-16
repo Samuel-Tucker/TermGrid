@@ -24,7 +24,7 @@ struct CellView: View {
     @State private var hoveredHeaderButton: String? = nil
     @FocusState private var labelFieldFocused: Bool
 
-    private static let headerButtonIDs = ["splitH", "splitV", "folder", "explorer", "notes"]
+    private static let headerButtonIDs = ["splitH", "splitV", "explorer", "notes"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -93,19 +93,41 @@ struct CellView: View {
                     }
             }
 
-            // Repo pill badge
+            // Repo pill badge — doubles as directory Menu
             if let badgePath = effectiveExplorerPath, badgePath != FileManager.default.homeDirectoryForCurrentUser.path {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.4)) { showExplorer = true }
+                Menu {
+                    Button("Set Terminal Directory") { pickWorkingDirectory() }
+                    Button("Set Explorer Directory") { pickExplorerDirectory() }
+                    Divider()
+                    Button(showExplorer ? "Show Terminal" : "Show Explorer") {
+                        withAnimation(.easeInOut(duration: 0.4)) { showExplorer.toggle() }
+                    }
                 } label: {
-                    Text(shortenPath(badgePath))
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(Theme.accent)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Theme.cellBorder))
+                    HStack(spacing: 4) {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 8))
+                        Text(shortenPath(badgePath))
+                            .font(.system(size: 10, design: .monospaced))
+                    }
+                    .foregroundColor(Theme.accent)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Theme.cellBorder))
                 }
-                .buttonStyle(.borderless)
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            } else {
+                // No directory set yet — show small folder icon as Menu
+                Menu {
+                    Button("Set Terminal Directory") { pickWorkingDirectory() }
+                    Button("Set Explorer Directory") { pickExplorerDirectory() }
+                } label: {
+                    Image(systemName: "folder")
+                        .font(.system(size: 10))
+                        .foregroundColor(Theme.headerIcon)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
 
             Spacer()
@@ -125,9 +147,6 @@ struct CellView: View {
                 action: { onToggleSplit(.vertical) }
             )
 
-            // Folder Menu with dock-hover styling
-            folderMenu
-
             headerIconButton(
                 id: "explorer",
                 systemName: showExplorer ? "terminal" : "doc.text.magnifyingglass",
@@ -144,57 +163,6 @@ struct CellView: View {
                 action: { showNotes.toggle() }
             )
         }
-    }
-
-    // MARK: - Folder Menu (dock-hover styled)
-
-    @ViewBuilder
-    private var folderMenu: some View {
-        let id = "folder"
-        let isFolderHovered = hoveredHeaderButton == id
-        let isAnyHovered = hoveredHeaderButton != nil
-        let folderNeighbor = isNeighbor(id, to: hoveredHeaderButton)
-        let folderScale: CGFloat = isFolderHovered ? 1.35 : (folderNeighbor ? 1.12 : 1.0)
-        let folderBlur: CGFloat = isFolderHovered ? 0 : (isAnyHovered ? (folderNeighbor ? 0.5 : 1.5) : 0)
-        let iconColor = isFolderHovered ? Theme.accent : Theme.headerIcon
-
-        Menu {
-            Button("Set Terminal Directory") {
-                pickWorkingDirectory()
-            }
-            Button("Set Explorer Directory") {
-                pickExplorerDirectory()
-            }
-        } label: {
-            Image(systemName: "folder")
-                .font(.system(size: 12))
-                .foregroundColor(iconColor)
-        }
-        .menuStyle(.borderlessButton)
-        .scaleEffect(folderScale)
-        .blur(radius: folderBlur)
-        .zIndex(isFolderHovered ? 1 : 0)
-        .overlay(alignment: .top) {
-            Text("Set directory")
-                .font(.system(size: 9, weight: .medium, design: .rounded))
-                .foregroundColor(Theme.headerText)
-                .fixedSize()
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Theme.cellBackground)
-                        .shadow(color: .black.opacity(0.25), radius: 4, y: -2)
-                )
-                .offset(y: isFolderHovered ? -24 : -16)
-                .opacity(isFolderHovered ? 1 : 0)
-        }
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                hoveredHeaderButton = hovering ? id : nil
-            }
-        }
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: hoveredHeaderButton)
     }
 
     // MARK: - Dock-Style Hover Button
