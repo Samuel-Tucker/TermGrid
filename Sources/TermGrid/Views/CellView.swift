@@ -4,10 +4,16 @@ import AppKit
 struct CellView: View {
     let cell: Cell
     let session: TerminalSession?
+    let splitSession: TerminalSession?
+    let splitDirection: SplitDirection?
     let onUpdateLabel: (String) -> Void
     let onUpdateNotes: (String) -> Void
     let onUpdateWorkingDirectory: (String) -> Void
     let onRestartSession: () -> Void
+    let onToggleSplit: (SplitDirection) -> Void
+    let onRestartSplitSession: () -> Void
+    let onUpdateTerminalLabel: (String) -> Void
+    let onUpdateSplitTerminalLabel: (String) -> Void
 
     @State private var isEditingLabel = false
     @State private var labelDraft = ""
@@ -20,8 +26,9 @@ struct CellView: View {
             headerView
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                .background(Theme.headerBackground)
 
-            Divider()
+            Theme.divider.frame(height: 1)
 
             // Body: terminal + optional notes panel
             HStack(spacing: 0) {
@@ -33,11 +40,11 @@ struct CellView: View {
                 }
             }
         }
-        .background(.background)
+        .background(Theme.cellBackground)
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(.separator, lineWidth: 1)
+                .stroke(Theme.cellBorder, lineWidth: 1)
         )
     }
 
@@ -50,6 +57,7 @@ struct CellView: View {
                 TextField("Untitled", text: $labelDraft)
                     .textFieldStyle(.plain)
                     .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Theme.headerText)
                     .focused($labelFieldFocused)
                     .onSubmit { commitLabel() }
                     .onKeyPress(.escape) {
@@ -66,7 +74,7 @@ struct CellView: View {
             } else {
                 Text(cell.label.isEmpty ? "Untitled" : cell.label)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(cell.label.isEmpty ? .tertiary : .primary)
+                    .foregroundColor(cell.label.isEmpty ? Theme.headerIcon : Theme.headerText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -77,10 +85,33 @@ struct CellView: View {
 
             Spacer()
 
+            // Horizontal split button (top/bottom)
+            Button {
+                onToggleSplit(.horizontal)
+            } label: {
+                Image(systemName: splitDirection == .horizontal ? "square.split.1x2.fill" : "square.split.1x2")
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.headerIcon)
+            }
+            .buttonStyle(.borderless)
+            .help(splitDirection == .horizontal ? "Close horizontal split" : "Split horizontal")
+
+            // Vertical split button (left/right)
+            Button {
+                onToggleSplit(.vertical)
+            } label: {
+                Image(systemName: splitDirection == .vertical ? "square.split.2x1.fill" : "square.split.2x1")
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.headerIcon)
+            }
+            .buttonStyle(.borderless)
+            .help(splitDirection == .vertical ? "Close vertical split" : "Split vertical")
+
             // Folder picker button
             Button(action: pickWorkingDirectory) {
                 Image(systemName: "folder")
                     .font(.system(size: 12))
+                    .foregroundColor(Theme.headerIcon)
             }
             .buttonStyle(.borderless)
             .help("Set working directory")
@@ -89,6 +120,7 @@ struct CellView: View {
             Button(action: { showNotes.toggle() }) {
                 Image(systemName: showNotes ? "note.text" : "note.text.badge.plus")
                     .font(.system(size: 12))
+                    .foregroundColor(Theme.headerIcon)
             }
             .buttonStyle(.borderless)
             .help(showNotes ? "Hide notes" : "Show notes")
@@ -99,38 +131,97 @@ struct CellView: View {
 
     @ViewBuilder
     private var terminalBody: some View {
-        if let session {
-            ZStack {
-                TerminalContainerView(session: session)
-                    .id(session.sessionID)
+        if splitSession != nil, let dir = splitDirection {
+            splitContainer(direction: dir) {
+                labeledTerminalPane(
+                    session: session,
+                    label: cell.terminalLabel,
+                    placeholder: "Label terminal...",
+                    onRestart: onRestartSession,
+                    onUpdateLabel: onUpdateTerminalLabel
+                )
+                Divider()
+                labeledTerminalPane(
+                    session: splitSession,
+                    label: cell.splitTerminalLabel,
+                    placeholder: "Label terminal...",
+                    onRestart: onRestartSplitSession,
+                    onUpdateLabel: onUpdateSplitTerminalLabel
+                )
+            }
+        } else {
+            labeledTerminalPane(
+                session: session,
+                label: cell.terminalLabel,
+                placeholder: "Label terminal...",
+                onRestart: onRestartSession,
+                onUpdateLabel: onUpdateTerminalLabel
+            )
+        }
+    }
 
-                if !session.isRunning {
-                    // Session ended overlay
-                    VStack(spacing: 8) {
-                        Text("Session ended")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        Button("Restart") {
-                            onRestartSession()
+    @ViewBuilder
+    private func splitContainer<Content: View>(direction: SplitDirection, @ViewBuilder content: () -> Content) -> some View {
+        switch direction {
+        case .horizontal:
+            VStack(spacing: 0) { content() }
+        case .vertical:
+            HStack(spacing: 0) { content() }
+        }
+    }
+
+    @ViewBuilder
+    private func labeledTerminalPane(
+        session: TerminalSession?,
+        label: String,
+        placeholder: String,
+        onRestart: @escaping () -> Void,
+        onUpdateLabel: @escaping (String) -> Void
+    ) -> some View {
+        VStack(spacing: 0) {
+            TerminalLabelBar(label: label, placeholder: placeholder, onCommit: onUpdateLabel)
+            terminalPane(session: session, onRestart: onRestart)
+        }
+    }
+
+    @ViewBuilder
+    private func terminalPane(session: TerminalSession?, onRestart: @escaping () -> Void) -> some View {
+        if let session {
+            VStack(spacing: 0) {
+                ZStack {
+                    TerminalContainerView(session: session)
+                        .id(session.sessionID)
+
+                    if !session.isRunning {
+                        VStack(spacing: 8) {
+                            Text("Session ended")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(Theme.overlayText)
+                            Button("Restart", action: onRestart)
+                                .buttonStyle(.bordered)
+                                .tint(Theme.accent)
                         }
-                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Theme.cellBackground.opacity(0.85))
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(.ultraThinMaterial)
+                }
+
+                ComposeBox { text in
+                    session.send(text)
                 }
             }
         } else {
-            // Fallback if no session yet
             VStack {
                 Spacer()
                 ProgressView()
                     .controlSize(.small)
                 Text("Starting terminal...")
                     .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
+                    .foregroundColor(Theme.composePlaceholder)
                 Spacer()
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Theme.cellBackground)
         }
     }
 

@@ -14,13 +14,14 @@ struct NotesView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("NOTES")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundColor(Theme.notesSecondary)
                 .textCase(.uppercase)
                 .padding(.bottom, 4)
 
             if isEditing {
                 TextEditor(text: $draft)
                     .font(.system(size: 12))
+                    .foregroundColor(Theme.notesText)
                     .scrollContentBackground(.hidden)
                     .focused($editorFocused)
                     .onAppear {
@@ -38,11 +39,12 @@ struct NotesView: View {
                     if notes.isEmpty {
                         Text("Click to add notes...")
                             .font(.system(size: 12))
-                            .foregroundStyle(.tertiary)
+                            .foregroundColor(Theme.composePlaceholder)
                     } else {
                         Markdown(notes)
                             .markdownTextStyle {
                                 FontSize(12)
+                                ForegroundColor(Theme.notesText)
                             }
                     }
                 }
@@ -52,6 +54,7 @@ struct NotesView: View {
             }
         }
         .padding(8)
+        .background(Theme.notesBackground)
         .onChange(of: editorFocused) { _, focused in
             if !focused && isEditing {
                 commitEdit()

@@ -37,6 +37,18 @@ final class WorkspaceStore {
         scheduleSave()
     }
 
+    func updateTerminalLabel(_ label: String, for cellID: UUID) {
+        guard let index = workspace.cells.firstIndex(where: { $0.id == cellID }) else { return }
+        workspace.cells[index].terminalLabel = label
+        scheduleSave()
+    }
+
+    func updateSplitTerminalLabel(_ label: String, for cellID: UUID) {
+        guard let index = workspace.cells.firstIndex(where: { $0.id == cellID }) else { return }
+        workspace.cells[index].splitTerminalLabel = label
+        scheduleSave()
+    }
+
     func setGridPreset(_ preset: GridPreset) {
         workspace.gridLayout = preset
         let needed = preset.cellCount

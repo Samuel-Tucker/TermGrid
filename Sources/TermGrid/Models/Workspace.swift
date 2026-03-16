@@ -33,13 +33,18 @@ struct Cell: Codable, Identifiable {
     var label: String
     var notes: String
     var workingDirectory: String
+    var terminalLabel: String
+    var splitTerminalLabel: String
 
     init(id: UUID = UUID(), label: String = "", notes: String = "",
-         workingDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path) {
+         workingDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path,
+         terminalLabel: String = "", splitTerminalLabel: String = "") {
         self.id = id
         self.label = label
         self.notes = notes
         self.workingDirectory = workingDirectory
+        self.terminalLabel = terminalLabel
+        self.splitTerminalLabel = splitTerminalLabel
     }
 
     init(from decoder: Decoder) throws {
@@ -49,6 +54,8 @@ struct Cell: Codable, Identifiable {
         notes = (try? container.decode(String.self, forKey: .notes)) ?? ""
         workingDirectory = (try? container.decode(String.self, forKey: .workingDirectory))
             ?? FileManager.default.homeDirectoryForCurrentUser.path
+        terminalLabel = (try? container.decode(String.self, forKey: .terminalLabel)) ?? ""
+        splitTerminalLabel = (try? container.decode(String.self, forKey: .splitTerminalLabel)) ?? ""
     }
 }
 

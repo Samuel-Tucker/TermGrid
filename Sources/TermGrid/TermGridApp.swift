@@ -19,6 +19,7 @@ struct TermGridApp: App {
         Window("TermGrid", id: "main") {
             ContentView(store: store, sessionManager: sessionManager)
                 .frame(minWidth: 600, minHeight: 400)
+                .preferredColorScheme(.dark)
                 .onAppear {
                     NSApp.activate(ignoringOtherApps: true)
                 }

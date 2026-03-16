@@ -14,6 +14,10 @@ final class TerminalSession {
         self.terminalView = LocalProcessTerminalView(frame: .zero)
 
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
+        terminalView.nativeBackgroundColor = Theme.terminalBackground
+        terminalView.nativeForegroundColor = Theme.terminalForeground
+        terminalView.caretColor = Theme.terminalCursor
+
         terminalView.startProcess(
             executable: shell,
             args: ["-l"],
@@ -21,6 +25,11 @@ final class TerminalSession {
             execName: nil,
             currentDirectory: workingDirectory
         )
+    }
+
+    func send(_ text: String) {
+        guard isRunning else { return }
+        terminalView.send(txt: text)
     }
 
     func kill() {
