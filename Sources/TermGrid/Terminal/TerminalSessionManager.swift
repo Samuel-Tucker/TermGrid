@@ -30,7 +30,7 @@ final class TerminalSessionManager {
         if let existing = sessions[cellID] {
             existing.kill()
         }
-        let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory)
+        let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory, sessionType: .primary)
         sessions[cellID] = session
         return session
     }
@@ -40,7 +40,7 @@ final class TerminalSessionManager {
         if let existing = splitSessions[cellID] {
             existing.kill()
         }
-        let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory)
+        let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory, sessionType: .split)
         splitSessions[cellID] = session
         splitDirections[cellID] = direction
         return session
