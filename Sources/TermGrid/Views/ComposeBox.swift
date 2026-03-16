@@ -134,8 +134,20 @@ struct ComposeTextEditor: NSViewRepresentable {
 final class ComposeNSTextView: NSTextView {
     var onShiftEnter: (() -> Void)?
 
+    // In a bundled .app, key events flow through performKeyEquivalent
+    // on the responder chain BEFORE keyDown is called. The app's menu
+    // system or SwiftUI internals can consume Shift+Enter at that stage,
+    // so we must intercept it here as well.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.keyCode == 36 && event.modifierFlags.contains(.shift) {
+            onShiftEnter?()
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+
     override func keyDown(with event: NSEvent) {
-        // Shift+Enter = send
+        // Shift+Enter = send (fallback for non-bundled contexts)
         if event.keyCode == 36 && event.modifierFlags.contains(.shift) {
             onShiftEnter?()
             return
