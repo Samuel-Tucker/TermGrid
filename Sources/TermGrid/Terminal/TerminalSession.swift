@@ -8,7 +8,7 @@ final class TerminalSession {
     let terminalView: LocalProcessTerminalView
     var isRunning: Bool = true
 
-    init(cellID: UUID, workingDirectory: String) {
+    init(cellID: UUID, workingDirectory: String, environment: [String]? = nil) {
         self.cellID = cellID
         self.sessionID = UUID()
         self.terminalView = LocalProcessTerminalView(frame: .zero)
@@ -21,7 +21,7 @@ final class TerminalSession {
         terminalView.startProcess(
             executable: shell,
             args: ["-l"],
-            environment: nil,
+            environment: environment,
             execName: nil,
             currentDirectory: workingDirectory
         )
