@@ -60,6 +60,11 @@ struct NotesView: View {
                 commitEdit()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .focusNotesPanel)) { _ in
+            if !isEditing {
+                startEdit()
+            }
+        }
     }
 
     private func startEdit() {

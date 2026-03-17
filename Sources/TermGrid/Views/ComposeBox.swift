@@ -28,7 +28,7 @@ struct ComposeBox: View {
                 Spacer()
 
                 if !isCollapsed {
-                    Text("⇧Enter to send")
+                    Text("⇧Enter send  ⌃Tab switch")
                         .font(.system(size: 10))
                         .foregroundColor(Theme.composeChrome)
                 }
@@ -62,9 +62,13 @@ struct ComposeBox: View {
     private func sendText() {
         let input = text
         guard !input.isEmpty else { return }
-        // Replace newlines with \r (PTY expects \r for Enter) and append \r to submit
-        let ptyText = input.replacingOccurrences(of: "\n", with: "\r") + "\r"
-        onSend(ptyText)
+        // Send each line separately with \r to execute, handling multi-line input
+        let lines = input.components(separatedBy: .newlines)
+        for line in lines {
+            if !line.isEmpty {
+                onSend(line + "\r")
+            }
+        }
         text = ""
     }
 }
@@ -137,7 +141,7 @@ struct ComposeTextEditor: NSViewRepresentable {
     }
 }
 
-// Custom NSTextView that intercepts Shift+Enter
+// Custom NSTextView that intercepts Shift+Enter and Ctrl+Tab
 final class ComposeNSTextView: NSTextView {
     var onShiftEnter: (() -> Void)?
 
@@ -158,6 +162,12 @@ final class ComposeNSTextView: NSTextView {
             onShiftEnter?()
             return true
         }
+        // Ctrl+Tab = cycle focus between panes
+        if event.keyCode == 48 && event.modifierFlags.contains(.control) {
+            NotificationCenter.default.post(name: .cyclePaneFocus, object: nil,
+                                            userInfo: ["source": "compose"])
+            return true
+        }
         return super.performKeyEquivalent(with: event)
     }
 
@@ -167,7 +177,19 @@ final class ComposeNSTextView: NSTextView {
             onShiftEnter?()
             return
         }
+        // Ctrl+Tab = cycle focus (fallback)
+        if event.keyCode == 48 && event.modifierFlags.contains(.control) {
+            NotificationCenter.default.post(name: .cyclePaneFocus, object: nil,
+                                            userInfo: ["source": "compose"])
+            return
+        }
         // Plain Enter = newline (default behavior)
         super.keyDown(with: event)
     }
+}
+
+// MARK: - Focus cycling notifications
+extension Notification.Name {
+    static let cyclePaneFocus = Notification.Name("TermGrid.cyclePaneFocus")
+    static let focusNotesPanel = Notification.Name("TermGrid.focusNotesPanel")
 }
