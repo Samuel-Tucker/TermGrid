@@ -3,6 +3,7 @@ import MarkdownUI
 import AppKit
 
 struct NotesView: View {
+    let cellID: UUID
     let notes: String
     let onUpdate: (String) -> Void
 
@@ -60,7 +61,8 @@ struct NotesView: View {
                 commitEdit()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .focusNotesPanel)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .focusNotesPanel)) { notification in
+            guard let targetID = notification.object as? UUID, targetID == cellID else { return }
             if !isEditing {
                 startEdit()
             }
