@@ -93,25 +93,25 @@ struct ContentView: View {
                                         // Restore split if persisted
                                         if let dirStr = cell.splitDirection {
                                             let dir: SplitDirection = dirStr == "horizontal" ? .horizontal : .vertical
-                                            let hasScrollback = scrollbackManager.load(cellID: cell.id, sessionType: .split)
+                                            let splitData = scrollbackManager.loadRaw(cellID: cell.id, sessionType: .split)
                                             let splitSession = sessionManager.createSplitSession(
                                                 for: cell.id, workingDirectory: cell.workingDirectory,
-                                                direction: dir, startImmediately: hasScrollback == nil
+                                                direction: dir, startImmediately: splitData == nil
                                             )
-                                            if let text = hasScrollback {
-                                                splitSession.feedScrollback(text)
+                                            if let data = splitData {
+                                                splitSession.replayScrollback(data)
                                                 splitSession.start()
                                             }
                                         }
 
                                         // Create primary session
-                                        let hasScrollback = scrollbackManager.load(cellID: cell.id, sessionType: .primary)
+                                        let primaryData = scrollbackManager.loadRaw(cellID: cell.id, sessionType: .primary)
                                         let session = sessionManager.createSession(
                                             for: cell.id, workingDirectory: cell.workingDirectory,
-                                            startImmediately: hasScrollback == nil
+                                            startImmediately: primaryData == nil
                                         )
-                                        if let text = hasScrollback {
-                                            session.feedScrollback(text)
+                                        if let data = primaryData {
+                                            session.replayScrollback(data)
                                             session.start()
                                         }
 
