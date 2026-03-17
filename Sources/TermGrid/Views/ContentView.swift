@@ -68,6 +68,10 @@ struct ContentView: View {
                                     },
                                     onUpdateExplorerViewMode: { mode in
                                         store.updateExplorerViewMode(mode, for: cell.id)
+                                    },
+                                    onCloseCell: {
+                                        sessionManager.killSession(for: cell.id)
+                                        store.removeCell(id: cell.id)
                                     }
                                 )
                                 .frame(width: max(cellWidth, 100), height: max(cellHeight, 100))
