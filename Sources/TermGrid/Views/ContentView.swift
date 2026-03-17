@@ -7,6 +7,7 @@ struct ContentView: View {
     var sessionManager: TerminalSessionManager
     @Bindable var vault: APIKeyVault
     var docsManager: DocsManager
+    var scrollbackManager: ScrollbackManager
     @State private var showAPILocker = false
     @State private var isLockerHovered = false
     @State private var cellUIStates: [UUID: CellUIState] = [:]
@@ -89,7 +90,35 @@ struct ContentView: View {
                                 .frame(width: max(cellWidth, 100), height: max(cellHeight, 100))
                                 .onAppear {
                                     if sessionManager.session(for: cell.id) == nil {
-                                        sessionManager.createSession(for: cell.id, workingDirectory: cell.workingDirectory)
+                                        // Restore split if persisted
+                                        if let dirStr = cell.splitDirection {
+                                            let dir: SplitDirection = dirStr == "horizontal" ? .horizontal : .vertical
+                                            let hasScrollback = scrollbackManager.load(cellID: cell.id, sessionType: .split)
+                                            let splitSession = sessionManager.createSplitSession(
+                                                for: cell.id, workingDirectory: cell.workingDirectory,
+                                                direction: dir, startImmediately: hasScrollback == nil
+                                            )
+                                            if let text = hasScrollback {
+                                                splitSession.feedScrollback(text)
+                                                splitSession.start()
+                                            }
+                                        }
+
+                                        // Create primary session
+                                        let hasScrollback = scrollbackManager.load(cellID: cell.id, sessionType: .primary)
+                                        let session = sessionManager.createSession(
+                                            for: cell.id, workingDirectory: cell.workingDirectory,
+                                            startImmediately: hasScrollback == nil
+                                        )
+                                        if let text = hasScrollback {
+                                            session.feedScrollback(text)
+                                            session.start()
+                                        }
+
+                                        // Restore explorer state
+                                        if cell.showExplorer {
+                                            uiState(for: cell.id).showExplorer = true
+                                        }
                                     }
                                 }
                             }
@@ -161,6 +190,10 @@ struct ContentView: View {
             }
             .onAppear {
                 sessionManager.vaultKeys = vault.decryptedKeys
+                store.cellUIStates = cellUIStates
+                // Clean up orphaned scrollback files
+                let activeCellIDs = Set(store.workspace.cells.map(\.id))
+                scrollbackManager.cleanupAll(keeping: activeCellIDs)
                 focusMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { event in
                     // Cmd+Shift+P toggles command palette
                     if event.type == .keyDown,

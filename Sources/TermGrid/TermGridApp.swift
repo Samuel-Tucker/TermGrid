@@ -28,11 +28,13 @@ struct TermGridApp: App {
     @State private var notificationSubsystem = NotificationSubsystem()
     @State private var vault = APIKeyVault()
     @State private var docsManager = DocsManager()
+    @State private var scrollbackManager = ScrollbackManager()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         Window("TermGrid", id: "main") {
-            ContentView(store: store, sessionManager: sessionManager, vault: vault, docsManager: docsManager)
+            ContentView(store: store, sessionManager: sessionManager, vault: vault,
+                        docsManager: docsManager, scrollbackManager: scrollbackManager)
                 .frame(minWidth: 600, minHeight: 400)
                 .preferredColorScheme(.dark)
                 .onAppear {
@@ -40,6 +42,7 @@ struct TermGridApp: App {
                     vault.onKeyRemoved = { keyID in
                         docsManager.removeDocsForKey(keyID)
                     }
+                    store.sessionManager = sessionManager
                     startNotificationSubsystem()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
