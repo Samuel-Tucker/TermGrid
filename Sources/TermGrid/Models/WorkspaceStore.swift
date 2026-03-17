@@ -49,6 +49,18 @@ final class WorkspaceStore {
         scheduleSave()
     }
 
+    func updateExplorerDirectory(_ path: String, for cellID: UUID) {
+        guard let index = workspace.cells.firstIndex(where: { $0.id == cellID }) else { return }
+        workspace.cells[index].explorerDirectory = path
+        scheduleSave()
+    }
+
+    func updateExplorerViewMode(_ mode: ExplorerViewMode, for cellID: UUID) {
+        guard let index = workspace.cells.firstIndex(where: { $0.id == cellID }) else { return }
+        workspace.cells[index].explorerViewMode = mode
+        scheduleSave()
+    }
+
     func setGridPreset(_ preset: GridPreset) {
         workspace.gridLayout = preset
         let needed = preset.cellCount

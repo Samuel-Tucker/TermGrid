@@ -86,4 +86,22 @@ struct WorkspaceStoreTests {
         store.updateWorkingDirectory("/tmp/myproject", for: cellID)
         #expect(store.workspace.cells[0].workingDirectory == "/tmp/myproject")
     }
+
+    @Test func updateExplorerDirectory() throws {
+        let dir = try H.makeTempDir()
+        defer { H.removeTempDir(dir) }
+        let store = H.makeStore(directory: dir)
+        let cellID = store.workspace.cells[0].id
+        store.updateExplorerDirectory("/tmp/project", for: cellID)
+        #expect(store.workspace.cells[0].explorerDirectory == "/tmp/project")
+    }
+
+    @Test func updateExplorerViewMode() throws {
+        let dir = try H.makeTempDir()
+        defer { H.removeTempDir(dir) }
+        let store = H.makeStore(directory: dir)
+        let cellID = store.workspace.cells[0].id
+        store.updateExplorerViewMode(.list, for: cellID)
+        #expect(store.workspace.cells[0].explorerViewMode == .list)
+    }
 }

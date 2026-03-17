@@ -26,15 +26,20 @@ struct TermGridApp: App {
     @State private var store = WorkspaceStore()
     @State private var sessionManager = TerminalSessionManager()
     @State private var notificationSubsystem = NotificationSubsystem()
+    @State private var vault = APIKeyVault()
+    @State private var docsManager = DocsManager()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         Window("TermGrid", id: "main") {
-            ContentView(store: store, sessionManager: sessionManager)
+            ContentView(store: store, sessionManager: sessionManager, vault: vault, docsManager: docsManager)
                 .frame(minWidth: 600, minHeight: 400)
                 .preferredColorScheme(.dark)
                 .onAppear {
                     NSApp.activate(ignoringOtherApps: true)
+                    vault.onKeyRemoved = { keyID in
+                        docsManager.removeDocsForKey(keyID)
+                    }
                     startNotificationSubsystem()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
@@ -44,6 +49,7 @@ struct TermGridApp: App {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     store.flush()
+                    vault.lock()
                     sessionManager.killAll()
                     notificationSubsystem.server?.stop()
                 }

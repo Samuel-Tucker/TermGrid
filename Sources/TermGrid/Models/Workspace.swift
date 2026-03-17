@@ -28,6 +28,11 @@ enum GridPreset: String, Codable, CaseIterable {
     var cellCount: Int { columns * rows }
 }
 
+enum ExplorerViewMode: String, Codable {
+    case grid
+    case list
+}
+
 struct Cell: Codable, Identifiable {
     let id: UUID
     var label: String
@@ -35,16 +40,21 @@ struct Cell: Codable, Identifiable {
     var workingDirectory: String
     var terminalLabel: String
     var splitTerminalLabel: String
+    var explorerDirectory: String
+    var explorerViewMode: ExplorerViewMode
 
     init(id: UUID = UUID(), label: String = "", notes: String = "",
          workingDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path,
-         terminalLabel: String = "", splitTerminalLabel: String = "") {
+         terminalLabel: String = "", splitTerminalLabel: String = "",
+         explorerDirectory: String = "", explorerViewMode: ExplorerViewMode = .grid) {
         self.id = id
         self.label = label
         self.notes = notes
         self.workingDirectory = workingDirectory
         self.terminalLabel = terminalLabel
         self.splitTerminalLabel = splitTerminalLabel
+        self.explorerDirectory = explorerDirectory
+        self.explorerViewMode = explorerViewMode
     }
 
     init(from decoder: Decoder) throws {
@@ -56,6 +66,8 @@ struct Cell: Codable, Identifiable {
             ?? FileManager.default.homeDirectoryForCurrentUser.path
         terminalLabel = (try? container.decode(String.self, forKey: .terminalLabel)) ?? ""
         splitTerminalLabel = (try? container.decode(String.self, forKey: .splitTerminalLabel)) ?? ""
+        explorerDirectory = (try? container.decode(String.self, forKey: .explorerDirectory)) ?? ""
+        explorerViewMode = (try? container.decode(ExplorerViewMode.self, forKey: .explorerViewMode)) ?? .grid
     }
 }
 

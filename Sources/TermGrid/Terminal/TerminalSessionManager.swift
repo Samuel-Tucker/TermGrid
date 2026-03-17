@@ -12,6 +12,7 @@ final class TerminalSessionManager {
     private var sessions: [UUID: TerminalSession] = [:]
     private var splitSessions: [UUID: TerminalSession] = [:]
     private var splitDirections: [UUID: SplitDirection] = [:]
+    var vaultKeys: [String: String] = [:]
 
     func session(for cellID: UUID) -> TerminalSession? {
         sessions[cellID]
@@ -25,12 +26,22 @@ final class TerminalSessionManager {
         splitDirections[cellID]
     }
 
+    private func buildEnvironment() -> [String]? {
+        guard !vaultKeys.isEmpty else { return nil }
+        var env = ProcessInfo.processInfo.environment.map { "\($0.key)=\($0.value)" }
+        for (key, value) in vaultKeys {
+            env.append("\(key)=\(value)")
+        }
+        return env
+    }
+
     @discardableResult
     func createSession(for cellID: UUID, workingDirectory: String) -> TerminalSession {
         if let existing = sessions[cellID] {
             existing.kill()
         }
-        let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory, sessionType: .primary)
+        let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory,
+                                       sessionType: .primary, environment: buildEnvironment())
         sessions[cellID] = session
         return session
     }
@@ -40,7 +51,8 @@ final class TerminalSessionManager {
         if let existing = splitSessions[cellID] {
             existing.kill()
         }
-        let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory, sessionType: .split)
+        let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory,
+                                       sessionType: .split, environment: buildEnvironment())
         splitSessions[cellID] = session
         splitDirections[cellID] = direction
         return session

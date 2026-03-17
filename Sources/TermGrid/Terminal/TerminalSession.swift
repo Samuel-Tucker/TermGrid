@@ -9,7 +9,7 @@ final class TerminalSession {
     let terminalView: LocalProcessTerminalView
     var isRunning: Bool = true
 
-    init(cellID: UUID, workingDirectory: String, sessionType: SessionType = .primary) {
+    init(cellID: UUID, workingDirectory: String, sessionType: SessionType = .primary, environment: [String]? = nil) {
         self.cellID = cellID
         self.sessionID = UUID()
         self.sessionType = sessionType
@@ -20,7 +20,7 @@ final class TerminalSession {
         terminalView.nativeForegroundColor = Theme.terminalForeground
         terminalView.caretColor = Theme.terminalCursor
 
-        var env = Terminal.getEnvironmentVariables(termName: "xterm-256color")
+        var env = environment ?? Terminal.getEnvironmentVariables(termName: "xterm-256color")
         env.append("TERMGRID_CELL_ID=\(cellID.uuidString)")
         env.append("TERMGRID_SESSION_TYPE=\(sessionType.rawValue)")
 
