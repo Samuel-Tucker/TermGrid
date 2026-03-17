@@ -24,11 +24,10 @@ final class CellUIState {
     var showNotes: Bool = true
     var showExplorer: Bool = false
     var showGit: Bool = false
-    var showHiddenFiles: Bool = false
-    var isCreatingNewItem: Bool = false
-    var newItemIsFolder: Bool = false
 }
 ```
+
+Note: `showHiddenFiles` already lives on `FileExplorerModel` (not CellView `@State`). `isCreatingNewItem` and `newItemIsFolder` are `@State` on `FileExplorerView`. These stay where they are — the command palette triggers "New File"/"New Folder" via a notification or callback on `FileExplorerModel`, not by lifting state.
 
 **Ownership:** ContentView holds `[UUID: CellUIState]` dictionary. Each CellView receives its `CellUIState` instance. CellView reads/writes these instead of private `@State`.
 
@@ -38,7 +37,7 @@ final class CellUIState {
 
 Add `focusedCellID: UUID?` on ContentView.
 
-**Update mechanism:** Extend existing NSEvent monitor in CellView (currently handles Ctrl+Tab at lines 103-110). Walk responder chain from `NSApp.keyWindow?.firstResponder` upward to find which cell's container owns the responder. Update `focusedCellID` on each change.
+**Update mechanism:** Add an `NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown])` at the window level. On each event, walk responder chain from `NSApp.keyWindow?.firstResponder` upward to find which cell's container owns the responder. Update `focusedCellID` on each change. Using both `.leftMouseDown` and `.keyDown` ensures click-to-focus transitions are captured, not just keyboard events.
 
 **Why:** Palette needs to know which cell to scope commands to. Also enables future features that act on the focused cell.
 
@@ -46,7 +45,7 @@ Add `focusedCellID: UUID?` on ContentView.
 
 `NotificationCenter.post(name: .focusNotesPanel, object: cell.id)` posts correctly, but NotesView subscriber ignores the `object:` parameter — all cells react.
 
-**Fix:** Filter on cell ID in receiver:
+**Fix:** Add `let cellID: UUID` parameter to `NotesView` (currently only takes `notes: String` and `onUpdate`). Update call site in CellView to pass `cell.id`. Then filter on cell ID in receiver:
 ```swift
 .onReceive(NotificationCenter.default.publisher(for: .focusNotesPanel)) { notification in
     guard let targetID = notification.object as? UUID, targetID == cellID else { return }
@@ -62,10 +61,16 @@ Add `focusedCellID: UUID?` on ContentView.
 - Also: macOS menu item under `Commands` menu for discoverability
 
 ### Overlay
-- Mount: `.overlay` on `WindowGroup` scene in TermGridApp.swift (approach A — above all content including toolbar)
+- Mount: `.overlay` on `Window` scene in TermGridApp.swift (app uses `Window`, not `WindowGroup`)
 - Size: 400px wide, max 300px tall
 - Position: Centered in window
 - Dismiss: Escape, click outside, select action
+
+### Keyboard Navigation
+- Search field auto-focuses on open
+- Up/Down arrow keys move selection through results
+- Enter executes the selected command
+- Escape dismisses the palette
 
 ### Context
 - Header shows "Cell: {label}" when a cell is focused, "Global" otherwise
@@ -80,17 +85,8 @@ Add `focusedCellID: UUID?` on ContentView.
 
 ## Command Registry
 
-### Protocol
+### Types
 ```swift
-protocol AppCommand: Identifiable {
-    var id: String { get }
-    var title: String { get }
-    var icon: String { get }
-    var scope: CommandScope { get }
-    var isAvailable: Bool { get }
-    func execute(context: CommandContext)
-}
-
 enum CommandScope { case global, cell }
 
 struct CommandContext {
@@ -99,7 +95,21 @@ struct CommandContext {
     let store: WorkspaceStore
     let sessionManager: TerminalSessionManager
 }
+
+struct AppCommand: Identifiable {
+    let id: String
+    let title: String
+    let icon: String
+    let scope: CommandScope
+    var isAvailable: (CommandContext) -> Bool = { _ in true }
+    let action: (CommandContext) -> Void
+}
 ```
+
+Using a struct with closures rather than a protocol — simpler for ~10 static commands, matches the pack spec's description of closures capturing `focusedCellID` + `CellUIState`.
+
+### Data Flow
+`WorkspaceStore` and `TerminalSessionManager` are `@State` on `TermGridApp` and already passed to `ContentView`. Since the palette overlay mounts at the `Window` scene level in `TermGridApp`, it has direct access to both. The `[UUID: CellUIState]` dictionary and `focusedCellID` are passed from ContentView up to the palette via a shared observable or binding.
 
 ### Initial Commands
 
