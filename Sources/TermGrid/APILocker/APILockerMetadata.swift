@@ -44,11 +44,21 @@ struct APILockerMetadata: Codable {
     var pinHash: String
     var pinSalt: String
     var entries: [APIKeyEntry]
+    var isPremium: Bool
 
-    init(pinHash: String, pinSalt: String, entries: [APIKeyEntry] = []) {
+    init(pinHash: String, pinSalt: String, entries: [APIKeyEntry] = [], isPremium: Bool = false) {
         self.pinHash = pinHash
         self.pinSalt = pinSalt
         self.entries = entries
+        self.isPremium = isPremium
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        pinHash = try container.decode(String.self, forKey: .pinHash)
+        pinSalt = try container.decode(String.self, forKey: .pinSalt)
+        entries = try container.decode([APIKeyEntry].self, forKey: .entries)
+        isPremium = (try? container.decodeIfPresent(Bool.self, forKey: .isPremium)) ?? false
     }
 
     func hasEnvVarName(_ name: String) -> Bool {

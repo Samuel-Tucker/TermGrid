@@ -84,4 +84,26 @@ struct APILockerMetadataTests {
         #expect(meta.hasEnvVarName("MY_KEY") == true)
         #expect(meta.hasEnvVarName("OTHER_KEY") == false)
     }
+
+    @Test func decodesLegacyMetadataWithoutIsPremium() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let json = """
+        {"pinHash":"abc","pinSalt":"def","entries":[]}
+        """
+        let fileURL = dir.appendingPathComponent("metadata.json")
+        try json.data(using: .utf8)!.write(to: fileURL, options: .atomic)
+        let loaded = try APILockerMetadata.load(from: dir)
+        #expect(loaded?.isPremium == false)
+    }
+
+    @Test func isPremiumRoundTrip() throws {
+        let dir = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var meta = APILockerMetadata(pinHash: "abc", pinSalt: "def")
+        meta.isPremium = true
+        try APILockerMetadata.save(meta, to: dir)
+        let loaded = try APILockerMetadata.load(from: dir)
+        #expect(loaded?.isPremium == true)
+    }
 }
