@@ -41,7 +41,12 @@ final class FileExplorerModel {
         if display.hasPrefix(homePath) {
             display = "~" + display.dropFirst(homePath.count)
         }
-        return display.split(separator: "/").map(String.init)
+        var parts = display.split(separator: "/").map(String.init)
+        // Prepend "/" for root so user can navigate to filesystem root
+        if !currentPath.hasPrefix(homePath) {
+            parts.insert("/", at: 0)
+        }
+        return parts
     }
 
     var shortenedPath: String {
@@ -95,25 +100,40 @@ final class FileExplorerModel {
         loadContents()
     }
 
+    var canNavigateBack: Bool {
+        currentPath != "/"
+    }
+
     func navigateBack() {
         let parent = (currentPath as NSString).deletingLastPathComponent
-        if parent.count >= rootPath.count {
+        if !parent.isEmpty {
             navigateTo(parent)
         }
     }
 
     func navigateToBreadcrumbIndex(_ index: Int) {
-        let homePath = FileManager.default.homeDirectoryForCurrentUser.path
-        if currentPath.hasPrefix(homePath) {
-            let relative = String(currentPath.dropFirst(homePath.count))
-            let components = relative.split(separator: "/").map(String.init)
-            let targetComponents = Array(components.prefix(index + 1))
-            let targetPath = homePath + "/" + targetComponents.joined(separator: "/")
-            navigateTo(targetPath)
+        let components = pathComponents
+        guard index < components.count else { return }
+
+        let clicked = components[index]
+
+        if clicked == "~" {
+            navigateTo(FileManager.default.homeDirectoryForCurrentUser.path)
+        } else if clicked == "/" {
+            navigateTo("/")
         } else {
-            let parts = currentPath.split(separator: "/").map(String.init)
-            let targetPath = "/" + parts.prefix(index + 1).joined(separator: "/")
-            navigateTo(targetPath)
+            let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+            if currentPath.hasPrefix(homePath) && components.first == "~" {
+                // Path starts with ~ — build from home
+                let afterHome = Array(components.dropFirst().prefix(index))
+                let targetPath = homePath + "/" + afterHome.joined(separator: "/")
+                navigateTo(targetPath)
+            } else {
+                // Absolute path — skip the "/" root entry at index 0
+                let parts = Array(components.dropFirst().prefix(index))
+                let targetPath = "/" + parts.joined(separator: "/")
+                navigateTo(targetPath)
+            }
         }
     }
 

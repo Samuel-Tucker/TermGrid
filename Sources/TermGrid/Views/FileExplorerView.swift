@@ -63,32 +63,52 @@ struct FileExplorerView: View {
 
     @ViewBuilder
     private var breadcrumbBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 2) {
-                ForEach(Array(model.pathComponents.enumerated()), id: \.offset) { index, component in
-                    if index > 0 {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 8))
-                            .foregroundColor(Theme.composePlaceholder)
-                    }
-                    Button {
-                        model.navigateToBreadcrumbIndex(index)
-                    } label: {
-                        Text(component)
-                            .font(.system(size: 10, weight: index == model.pathComponents.count - 1 ? .semibold : .regular, design: .monospaced))
-                            .foregroundColor(index == model.pathComponents.count - 1 ? Theme.accent : Theme.headerIcon)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 3)
-                                    .fill(Theme.cellBorder.opacity(0.5))
-                            )
-                    }
-                    .buttonStyle(.borderless)
-                }
+        HStack(spacing: 0) {
+            // Back button
+            Button {
+                model.navigateBack()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(model.canNavigateBack ? Theme.accent : Theme.composePlaceholder)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(model.canNavigateBack ? Theme.accent.opacity(0.15) : Color.clear)
+                    )
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .buttonStyle(.borderless)
+            .disabled(!model.canNavigateBack)
+            .padding(.leading, 6)
+
+            // Breadcrumbs
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 2) {
+                    ForEach(Array(model.pathComponents.enumerated()), id: \.offset) { index, component in
+                        if index > 0 {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8))
+                                .foregroundColor(Theme.composePlaceholder)
+                        }
+                        Button {
+                            model.navigateToBreadcrumbIndex(index)
+                        } label: {
+                            Text(component)
+                                .font(.system(size: 10, weight: index == model.pathComponents.count - 1 ? .semibold : .regular, design: .monospaced))
+                                .foregroundColor(index == model.pathComponents.count - 1 ? Theme.accent : Theme.headerIcon)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 2)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(Theme.cellBorder.opacity(0.5))
+                                )
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 6)
+            }
         }
         .background(Theme.headerBackground)
     }
