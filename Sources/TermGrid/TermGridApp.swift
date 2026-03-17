@@ -30,6 +30,9 @@ struct TermGridApp: App {
                 .preferredColorScheme(.dark)
                 .onAppear {
                     NSApp.activate(ignoringOtherApps: true)
+                    vault.onKeyRemoved = { keyID in
+                        docsManager.removeDocsForKey(keyID)
+                    }
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     // Only flush persistence on background/inactive — do NOT kill sessions

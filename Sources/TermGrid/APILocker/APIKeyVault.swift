@@ -24,6 +24,7 @@ final class APIKeyVault {
     private(set) var entries: [APIKeyEntry] = []
     private(set) var decryptedKeys: [String: String] = [:]
     var errorMessage: String?
+    var onKeyRemoved: ((UUID) -> Void)?
 
     private let directory: URL
     private let useKeychain: Bool
@@ -176,6 +177,8 @@ final class APIKeyVault {
         } catch {
             errorMessage = "Failed to save metadata: \(error.localizedDescription)"
         }
+
+        onKeyRemoved?(id)
     }
 
     func copyKey(id: UUID) -> String? {
