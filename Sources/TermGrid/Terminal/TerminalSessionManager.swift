@@ -36,23 +36,28 @@ final class TerminalSessionManager {
     }
 
     @discardableResult
-    func createSession(for cellID: UUID, workingDirectory: String) -> TerminalSession {
+    func createSession(for cellID: UUID, workingDirectory: String,
+                       startImmediately: Bool = true) -> TerminalSession {
         if let existing = sessions[cellID] {
             existing.kill()
         }
         let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory,
-                                       sessionType: .primary, environment: buildEnvironment())
+                                       sessionType: .primary, environment: buildEnvironment(),
+                                       startImmediately: startImmediately)
         sessions[cellID] = session
         return session
     }
 
     @discardableResult
-    func createSplitSession(for cellID: UUID, workingDirectory: String, direction: SplitDirection) -> TerminalSession {
+    func createSplitSession(for cellID: UUID, workingDirectory: String,
+                             direction: SplitDirection,
+                             startImmediately: Bool = true) -> TerminalSession {
         if let existing = splitSessions[cellID] {
             existing.kill()
         }
         let session = TerminalSession(cellID: cellID, workingDirectory: workingDirectory,
-                                       sessionType: .split, environment: buildEnvironment())
+                                       sessionType: .split, environment: buildEnvironment(),
+                                       startImmediately: startImmediately)
         splitSessions[cellID] = session
         splitDirections[cellID] = direction
         return session
