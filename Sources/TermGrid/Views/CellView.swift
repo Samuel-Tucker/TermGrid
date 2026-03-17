@@ -83,7 +83,7 @@ struct CellView: View {
                 cellBody
                 if uiState.showNotes {
                     Divider()
-                    NotesView(notes: cell.notes, onUpdate: onUpdateNotes)
+                    NotesView(cellID: cell.id, notes: cell.notes, onUpdate: onUpdateNotes)
                         .frame(width: 160)
                 }
             }
