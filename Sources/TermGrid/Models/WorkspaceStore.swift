@@ -6,10 +6,15 @@ import Observation
 final class WorkspaceStore {
     var workspace: Workspace
     private let persistence: PersistenceManager
+    let scrollbackManager: ScrollbackManager
     private var saveTask: Task<Void, Never>?
+    var sessionManager: TerminalSessionManager?
+    var cellUIStates: [UUID: CellUIState]?
 
-    init(persistence: PersistenceManager = PersistenceManager()) {
+    init(persistence: PersistenceManager = PersistenceManager(),
+         scrollbackManager: ScrollbackManager? = nil) {
         self.persistence = persistence
+        self.scrollbackManager = scrollbackManager ?? ScrollbackManager()
         if let loaded = try? persistence.load() {
             self.workspace = loaded
         } else {
@@ -74,6 +79,7 @@ final class WorkspaceStore {
 
     func removeCell(id: UUID) {
         workspace.cells.removeAll { $0.id == id }
+        scrollbackManager.cleanup(cellID: id)
         compactGrid()
         scheduleSave()
     }
@@ -94,9 +100,42 @@ final class WorkspaceStore {
 
     // MARK: - Persistence
 
+    func saveScrollback() {
+        guard let sessionManager else { return }
+
+        for cell in workspace.visibleCells {
+            if let idx = workspace.cells.firstIndex(where: { $0.id == cell.id }) {
+                // Sync split direction from session manager
+                if let dir = sessionManager.splitDirection(for: cell.id) {
+                    workspace.cells[idx].splitDirection = dir == .horizontal ? "horizontal" : "vertical"
+                } else {
+                    workspace.cells[idx].splitDirection = nil
+                }
+
+                // Sync showExplorer from CellUIState
+                if let uiState = cellUIStates?[cell.id] {
+                    workspace.cells[idx].showExplorer = uiState.showExplorer
+                }
+            }
+
+            // Save primary scrollback
+            if let session = sessionManager.session(for: cell.id),
+               let text = session.getScrollbackText(), !text.isEmpty {
+                try? scrollbackManager.save(cellID: cell.id, sessionType: .primary, content: text)
+            }
+
+            // Save split scrollback
+            if let splitSession = sessionManager.splitSession(for: cell.id),
+               let text = splitSession.getScrollbackText(), !text.isEmpty {
+                try? scrollbackManager.save(cellID: cell.id, sessionType: .split, content: text)
+            }
+        }
+    }
+
     func flush() {
         saveTask?.cancel()
         saveTask = nil
+        saveScrollback()
         do {
             try persistence.save(workspace)
         } catch {
