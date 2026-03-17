@@ -7,9 +7,14 @@ struct ContentView: View {
     var docsManager: DocsManager
     @State private var showAPILocker = false
     @State private var isLockerHovered = false
+    @State private var cellUIStates: [UUID: CellUIState] = [:]
 
     private var rows: Int { store.workspace.gridLayout.rows }
     private var columns: Int { store.workspace.gridLayout.columns }
+
+    private func uiState(for id: UUID) -> CellUIState {
+        cellUIStates[id] ?? CellUIState()
+    }
 
     private var gridContent: some View {
         GeometryReader { geo in
@@ -22,9 +27,9 @@ struct ContentView: View {
             let cells = store.workspace.visibleCells
 
             VStack(spacing: spacing) {
-                ForEach(0..<rows, id: \.self) { row in
+                ForEach(0..<rows, id: \.self) { (row: Int) in
                     HStack(spacing: spacing) {
-                        ForEach(0..<columns, id: \.self) { col in
+                        ForEach(0..<columns, id: \.self) { (col: Int) in
                             let index = row * columns + col
                             if index < cells.count {
                                 let cell = cells[index]
@@ -72,7 +77,8 @@ struct ContentView: View {
                                     onCloseCell: {
                                         sessionManager.killSession(for: cell.id)
                                         store.removeCell(id: cell.id)
-                                    }
+                                    },
+                                    uiState: uiState(for: cell.id)
                                 )
                                 .frame(width: max(cellWidth, 100), height: max(cellHeight, 100))
                                 .onAppear {
@@ -132,6 +138,11 @@ struct ContentView: View {
                         .offset(y: isLockerHovered ? 28 : 20)
                         .opacity(isLockerHovered ? 1 : 0)
                 }
+            }
+        }
+        .onChange(of: store.workspace.visibleCells.map(\.id), initial: true) { _, cellIDs in
+            for id in cellIDs where cellUIStates[id] == nil {
+                cellUIStates[id] = CellUIState()
             }
         }
         .onChange(of: vault.decryptedKeys) { _, newKeys in
