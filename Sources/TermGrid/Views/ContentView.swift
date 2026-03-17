@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import SwiftTerm
 
 struct ContentView: View {
     @Bindable var store: WorkspaceStore
@@ -8,6 +10,8 @@ struct ContentView: View {
     @State private var showAPILocker = false
     @State private var isLockerHovered = false
     @State private var cellUIStates: [UUID: CellUIState] = [:]
+    @State private var focusedCellID: UUID? = nil
+    @State private var focusMonitor: Any? = nil
 
     private var rows: Int { store.workspace.gridLayout.rows }
     private var columns: Int { store.workspace.gridLayout.columns }
@@ -150,6 +154,54 @@ struct ContentView: View {
         }
         .onAppear {
             sessionManager.vaultKeys = vault.decryptedKeys
+            focusMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { event in
+                DispatchQueue.main.async {
+                    updateFocusedCell()
+                }
+                return event
+            }
         }
+        .onDisappear {
+            if let monitor = focusMonitor {
+                NSEvent.removeMonitor(monitor)
+                focusMonitor = nil
+            }
+        }
+    }
+
+    private func updateFocusedCell() {
+        guard let window = NSApp.keyWindow,
+              let responder = window.firstResponder as? NSView else { return }
+
+        var view: NSView? = responder
+        while let v = view {
+            if let termView = findTerminalView(in: v) {
+                for cell in store.workspace.visibleCells {
+                    if let session = sessionManager.session(for: cell.id),
+                       session.terminalView === termView {
+                        focusedCellID = cell.id
+                        return
+                    }
+                    if let splitSession = sessionManager.splitSession(for: cell.id),
+                       splitSession.terminalView === termView {
+                        focusedCellID = cell.id
+                        return
+                    }
+                }
+            }
+            view = v.superview
+        }
+    }
+
+    private func findTerminalView(in view: NSView) -> NSView? {
+        if view is SwiftTerm.LocalProcessTerminalView {
+            return view
+        }
+        for subview in view.subviews {
+            if let found = findTerminalView(in: subview) {
+                return found
+            }
+        }
+        return nil
     }
 }
