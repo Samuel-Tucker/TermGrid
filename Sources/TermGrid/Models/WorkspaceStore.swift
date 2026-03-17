@@ -72,6 +72,26 @@ final class WorkspaceStore {
         scheduleSave()
     }
 
+    func removeCell(id: UUID) {
+        workspace.cells.removeAll { $0.id == id }
+        compactGrid()
+        scheduleSave()
+    }
+
+    private func compactGrid() {
+        let count = workspace.cells.count
+        let preset: GridPreset
+        switch count {
+        case 7...: preset = .three_by_three
+        case 5...6: preset = .three_by_two
+        case 4:     preset = .two_by_two
+        case 3:     preset = .two_by_two
+        case 2:     preset = .two_by_one
+        default:    preset = .one_by_one
+        }
+        workspace.gridLayout = preset
+    }
+
     // MARK: - Persistence
 
     func flush() {

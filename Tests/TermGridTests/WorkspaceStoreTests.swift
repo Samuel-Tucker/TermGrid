@@ -104,4 +104,74 @@ struct WorkspaceStoreTests {
         store.updateExplorerViewMode(.list, for: cellID)
         #expect(store.workspace.cells[0].explorerViewMode == .list)
     }
+
+    @Test func removeCellRemovesFromArray() throws {
+        let dir = try H.makeTempDir()
+        defer { H.removeTempDir(dir) }
+        let store = H.makeStore(directory: dir)
+        let cellID = store.workspace.cells[0].id
+        let originalCount = store.workspace.cells.count
+        store.removeCell(id: cellID)
+        #expect(store.workspace.cells.count == originalCount - 1)
+        #expect(!store.workspace.cells.contains(where: { $0.id == cellID }))
+    }
+
+    @Test func removeCellStaysAt2x2With3Cells() throws {
+        let dir = try H.makeTempDir()
+        defer { H.removeTempDir(dir) }
+        let store = H.makeStore(directory: dir)
+        store.setGridPreset(.two_by_two)
+        let cellToRemove = store.workspace.cells[3].id
+        store.removeCell(id: cellToRemove)
+        #expect(store.workspace.cells.count == 3)
+        #expect(store.workspace.gridLayout == .two_by_two)
+    }
+
+    @Test func removeCellCompactsGrid2x2To2x1() throws {
+        let dir = try H.makeTempDir()
+        defer { H.removeTempDir(dir) }
+        let store = H.makeStore(directory: dir)
+        store.setGridPreset(.two_by_two)
+        store.removeCell(id: store.workspace.cells[3].id)
+        store.removeCell(id: store.workspace.cells[2].id)
+        #expect(store.workspace.cells.count == 2)
+        #expect(store.workspace.gridLayout == .two_by_one)
+    }
+
+    @Test func removeCellCompactsGrid2x2To1x1() throws {
+        let dir = try H.makeTempDir()
+        defer { H.removeTempDir(dir) }
+        let store = H.makeStore(directory: dir)
+        store.setGridPreset(.two_by_two)
+        store.removeCell(id: store.workspace.cells[3].id)
+        store.removeCell(id: store.workspace.cells[2].id)
+        store.removeCell(id: store.workspace.cells[1].id)
+        #expect(store.workspace.cells.count == 1)
+        #expect(store.workspace.gridLayout == .one_by_one)
+    }
+
+    @Test func removeCellFrom3x3To3x2() throws {
+        let dir = try H.makeTempDir()
+        defer { H.removeTempDir(dir) }
+        let store = H.makeStore(directory: dir)
+        store.setGridPreset(.three_by_three)
+        for _ in 0..<4 {
+            store.removeCell(id: store.workspace.cells.last!.id)
+        }
+        #expect(store.workspace.cells.count == 5)
+        #expect(store.workspace.gridLayout == .three_by_two)
+    }
+
+    @Test func removeLastCellLeavesEmpty1x1() throws {
+        let dir = try H.makeTempDir()
+        defer { H.removeTempDir(dir) }
+        let pm = H.makePM(directory: dir)
+        let saved = Workspace(gridLayout: .one_by_one)
+        try H.saveWorkspace(saved, using: pm)
+        let store = WorkspaceStore(persistence: pm)
+        #expect(store.workspace.cells.count == 1)
+        store.removeCell(id: store.workspace.cells[0].id)
+        #expect(store.workspace.cells.count == 0)
+        #expect(store.workspace.gridLayout == .one_by_one)
+    }
 }
