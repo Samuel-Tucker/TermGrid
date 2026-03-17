@@ -1,12 +1,12 @@
 #!/bin/bash
-# Build TermGrid V2 and install to ~/Applications
+# Build TermGrid V3 and install to ~/Applications
 set -e
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_DIR="$HOME/Applications/TermGrid-V2.app"
+APP_DIR="$HOME/Applications/TermGrid-V3.app"
 ICON_SRC="$PROJECT_DIR/Sources/TermGrid/Resources/Assets.xcassets/AppIcon.appiconset"
 
-echo "Building TermGrid V2..."
+echo "Building TermGrid V3..."
 cd "$PROJECT_DIR"
 swift build -c debug
 
@@ -47,15 +47,15 @@ cat > "$APP_DIR/Contents/Info.plist" << 'PLIST'
     <key>CFBundleExecutable</key>
     <string>TermGrid</string>
     <key>CFBundleIdentifier</key>
-    <string>com.samuel-tucker.termgrid-v2</string>
+    <string>com.samuel-tucker.termgrid-v3</string>
     <key>CFBundleName</key>
-    <string>TermGrid V2</string>
+    <string>TermGrid V3</string>
     <key>CFBundleDisplayName</key>
-    <string>TermGrid V2</string>
+    <string>TermGrid V3</string>
     <key>CFBundleVersion</key>
-    <string>2.0.0</string>
+    <string>3.0.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0.0</string>
+    <string>3.0.0</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>
@@ -77,5 +77,5 @@ codesign --force --deep --sign - "$APP_DIR"
 # Register with Launch Services (makes Spotlight find it)
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP_DIR"
 
-echo "Done! TermGrid V2 installed and registered with Spotlight."
+echo "Done! TermGrid V3 installed and registered with Spotlight."
 echo "Launch with: open '$APP_DIR' or search 'TermGrid' in Spotlight"
