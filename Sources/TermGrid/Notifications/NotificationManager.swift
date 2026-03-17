@@ -17,6 +17,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func setup() {
+        // UNUserNotificationCenter requires a proper app bundle — skip when running via `swift run`
+        guard Bundle.main.bundleIdentifier != nil else {
+            print("[TermGrid] No bundle identifier — notifications disabled (use .app bundle)")
+            return
+        }
+
         let center = UNUserNotificationCenter.current()
         center.delegate = self
 
@@ -46,6 +52,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func postNotification(for signal: AgentSignal) {
+        guard Bundle.main.bundleIdentifier != nil else { return }
+
         let content = UNMutableNotificationContent()
 
         if let cell = store.workspace.cells.first(where: { $0.id == signal.cellID }) {
