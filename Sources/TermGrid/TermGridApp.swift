@@ -55,6 +55,14 @@ struct TermGridApp: App {
                 }
         }
         .defaultSize(width: 900, height: 600)
+        .commands {
+            CommandGroup(after: .toolbar) {
+                Button("Command Palette") {
+                    NotificationCenter.default.post(name: .toggleCommandPalette, object: nil)
+                }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+            }
+        }
     }
 
     private func startNotificationSubsystem() {

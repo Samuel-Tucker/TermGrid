@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 struct FileExplorerView: View {
+    let cellID: UUID
     let rootPath: String
     let viewMode: ExplorerViewMode
     let onViewModeChange: (ExplorerViewMode) -> Void
@@ -12,7 +13,8 @@ struct FileExplorerView: View {
     @State private var newItemIsFolder = false
     @State private var newItemName = ""
 
-    init(rootPath: String, viewMode: ExplorerViewMode, onViewModeChange: @escaping (ExplorerViewMode) -> Void) {
+    init(cellID: UUID, rootPath: String, viewMode: ExplorerViewMode, onViewModeChange: @escaping (ExplorerViewMode) -> Void) {
+        self.cellID = cellID
         self.rootPath = rootPath
         self.viewMode = viewMode
         self.onViewModeChange = onViewModeChange
@@ -56,6 +58,23 @@ struct FileExplorerView: View {
         }
         .onChange(of: rootPath) { _, newPath in
             model.navigateTo(newPath)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .commandPaletteNewFile)) { notification in
+            guard let targetID = notification.object as? UUID, targetID == cellID else { return }
+            newItemIsFolder = false
+            newItemName = ""
+            isCreatingNewItem = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .commandPaletteNewFolder)) { notification in
+            guard let targetID = notification.object as? UUID, targetID == cellID else { return }
+            newItemIsFolder = true
+            newItemName = ""
+            isCreatingNewItem = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .commandPaletteToggleHidden)) { notification in
+            guard let targetID = notification.object as? UUID, targetID == cellID else { return }
+            model.showHiddenFiles.toggle()
+            model.loadContents()
         }
     }
 

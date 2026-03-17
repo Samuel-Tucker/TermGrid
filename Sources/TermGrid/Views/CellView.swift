@@ -330,6 +330,7 @@ struct CellView: View {
                 )
 
             FileExplorerView(
+                cellID: cell.id,
                 rootPath: cell.explorerDirectory.isEmpty ? cell.workingDirectory : cell.explorerDirectory,
                 viewMode: cell.explorerViewMode,
                 onViewModeChange: onUpdateExplorerViewMode
