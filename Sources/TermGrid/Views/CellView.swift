@@ -18,11 +18,10 @@ struct CellView: View {
     let onUpdateExplorerDirectory: (String) -> Void
     let onUpdateExplorerViewMode: (ExplorerViewMode) -> Void
     let onCloseCell: () -> Void
+    let uiState: CellUIState
 
     @State private var isEditingLabel = false
     @State private var labelDraft = ""
-    @State private var showNotes = true
-    @State private var showExplorer = false
     @State private var hoveredHeaderButton: String? = nil
     @State private var showCloseConfirmation = false
     @State private var focusMonitor: Any? = nil
@@ -82,7 +81,7 @@ struct CellView: View {
             // Body: terminal/explorer + optional notes panel
             HStack(spacing: 0) {
                 cellBody
-                if showNotes {
+                if uiState.showNotes {
                     Divider()
                     NotesView(notes: cell.notes, onUpdate: onUpdateNotes)
                         .frame(width: 160)
@@ -158,8 +157,8 @@ struct CellView: View {
                     Button("Set Terminal Directory") { pickWorkingDirectory() }
                     Button("Set Explorer Directory") { pickExplorerDirectory() }
                     Divider()
-                    Button(showExplorer ? "Show Terminal" : "Show Explorer") {
-                        withAnimation(.easeInOut(duration: 0.4)) { showExplorer.toggle() }
+                    Button(uiState.showExplorer ? "Show Terminal" : "Show Explorer") {
+                        withAnimation(.easeInOut(duration: 0.4)) { uiState.showExplorer.toggle() }
                     }
                 } label: {
                     HStack(spacing: 4) {
@@ -208,18 +207,18 @@ struct CellView: View {
 
             headerIconButton(
                 id: "explorer",
-                systemName: showExplorer ? "terminal" : "doc.text.magnifyingglass",
-                label: showExplorer ? "Show terminal" : "Show explorer",
+                systemName: uiState.showExplorer ? "terminal" : "doc.text.magnifyingglass",
+                label: uiState.showExplorer ? "Show terminal" : "Show explorer",
                 action: {
-                    withAnimation(.easeInOut(duration: 0.4)) { showExplorer.toggle() }
+                    withAnimation(.easeInOut(duration: 0.4)) { uiState.showExplorer.toggle() }
                 }
             )
 
             headerIconButton(
                 id: "notes",
-                systemName: showNotes ? "note.text" : "note.text.badge.plus",
-                label: showNotes ? "Hide notes" : "Show notes",
-                action: { showNotes.toggle() }
+                systemName: uiState.showNotes ? "note.text" : "note.text.badge.plus",
+                label: uiState.showNotes ? "Hide notes" : "Show notes",
+                action: { uiState.showNotes.toggle() }
             )
 
             // Gap separator before destructive action
@@ -323,9 +322,9 @@ struct CellView: View {
     private var cellBody: some View {
         ZStack {
             terminalBody
-                .opacity(showExplorer ? 0 : 1)
+                .opacity(uiState.showExplorer ? 0 : 1)
                 .rotation3DEffect(
-                    .degrees(showExplorer ? -90 : 0),
+                    .degrees(uiState.showExplorer ? -90 : 0),
                     axis: (x: 0, y: 1, z: 0),
                     perspective: 0.5
                 )
@@ -335,14 +334,14 @@ struct CellView: View {
                 viewMode: cell.explorerViewMode,
                 onViewModeChange: onUpdateExplorerViewMode
             )
-            .opacity(showExplorer ? 1 : 0)
+            .opacity(uiState.showExplorer ? 1 : 0)
             .rotation3DEffect(
-                .degrees(showExplorer ? 0 : 90),
+                .degrees(uiState.showExplorer ? 0 : 90),
                 axis: (x: 0, y: 1, z: 0),
                 perspective: 0.5
             )
         }
-        .animation(.easeInOut(duration: 0.4), value: showExplorer)
+        .animation(.easeInOut(duration: 0.4), value: uiState.showExplorer)
     }
 
     // MARK: - Terminal Body
@@ -536,7 +535,7 @@ struct CellView: View {
                 window.makeFirstResponder(compose)
             }
         } else if isCompose {
-            if showNotes {
+            if uiState.showNotes {
                 // Compose → Notes
                 NotificationCenter.default.post(name: .focusNotesPanel, object: cell.id)
             } else {
