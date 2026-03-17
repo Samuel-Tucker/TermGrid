@@ -20,11 +20,12 @@ struct TermGridApp: App {
     @State private var store = WorkspaceStore()
     @State private var sessionManager = TerminalSessionManager()
     @State private var vault = APIKeyVault()
+    @State private var docsManager = DocsManager()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         Window("TermGrid", id: "main") {
-            ContentView(store: store, sessionManager: sessionManager, vault: vault)
+            ContentView(store: store, sessionManager: sessionManager, vault: vault, docsManager: docsManager)
                 .frame(minWidth: 600, minHeight: 400)
                 .preferredColorScheme(.dark)
                 .onAppear {

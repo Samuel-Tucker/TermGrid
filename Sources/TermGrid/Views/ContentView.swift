@@ -4,7 +4,9 @@ struct ContentView: View {
     @Bindable var store: WorkspaceStore
     var sessionManager: TerminalSessionManager
     @Bindable var vault: APIKeyVault
+    var docsManager: DocsManager
     @State private var showAPILocker = false
+    @State private var isLockerHovered = false
 
     private var rows: Int { store.workspace.gridLayout.rows }
     private var columns: Int { store.workspace.gridLayout.columns }
@@ -88,7 +90,7 @@ struct ContentView: View {
             gridContent
             if showAPILocker {
                 Divider()
-                APILockerPanel(vault: vault)
+                APILockerPanel(vault: vault, docsManager: docsManager)
             }
         }
         .background(Theme.appBackground)
@@ -108,7 +110,24 @@ struct ContentView: View {
                         .foregroundColor(vault.state == .locked || vault.state == .noVault
                                          ? Theme.headerIcon : Theme.accent)
                 }
-                .help("API Locker")
+                .onHover { hovering in
+                    withAnimation(.easeInOut(duration: 0.15)) { isLockerHovered = hovering }
+                }
+                .overlay(alignment: .bottom) {
+                    Text("API Locker")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.headerText)
+                        .fixedSize()
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Theme.cellBackground)
+                                .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                        )
+                        .offset(y: isLockerHovered ? 28 : 20)
+                        .opacity(isLockerHovered ? 1 : 0)
+                }
             }
         }
         .onChange(of: vault.decryptedKeys) { _, newKeys in

@@ -190,6 +190,11 @@ final class APIKeyVault {
         return decryptedKeys[entry.envVarName]
     }
 
+    var isPremium: Bool {
+        guard let meta = try? APILockerMetadata.load(from: directory) else { return false }
+        return meta.isPremium
+    }
+
     var timeRemaining: TimeInterval {
         guard case .unlocked(let expiresAt) = state else { return 0 }
         return max(0, expiresAt.timeIntervalSinceNow)

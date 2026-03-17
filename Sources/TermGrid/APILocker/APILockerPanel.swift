@@ -102,10 +102,12 @@ struct ColorSwatchRow: View {
 
 struct APILockerPanel: View {
     @Bindable var vault: APIKeyVault
+    var docsManager: DocsManager
 
     @State private var pin = ""
     @State private var confirmPIN = ""
     @State private var showAddForm = false
+    @State private var selectedTab = "keys"
 
     // Add-key form fields
     @State private var newName = ""
@@ -252,67 +254,80 @@ struct APILockerPanel: View {
 
             Divider().background(Theme.cellBorder)
 
-            // Key list
-            ScrollView {
-                LazyVStack(spacing: 8) {
-                    ForEach(vault.entries) { entry in
-                        APIKeyCard(
-                            entry: entry,
-                            onCopy: {
-                                if let key = vault.copyKey(id: entry.id) {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(key, forType: .string)
-                                }
-                            },
-                            onReveal: {
-                                vault.revealKey(id: entry.id)
-                            },
-                            onDelete: {
-                                vault.removeKey(id: entry.id)
-                            }
-                        )
-                    }
-                }
-                .padding(12)
+            // Tab picker
+            Picker("", selection: $selectedTab) {
+                Text("Keys").tag("keys")
+                Text("Docs (\(docsManager.totalDocCount))").tag("docs")
             }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
 
-            Divider().background(Theme.cellBorder)
-
-            // Add key toggle
-            VStack(spacing: 8) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showAddForm.toggle()
+            if selectedTab == "keys" {
+                // Key list
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(vault.entries) { entry in
+                            APIKeyCard(
+                                entry: entry,
+                                onCopy: {
+                                    if let key = vault.copyKey(id: entry.id) {
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(key, forType: .string)
+                                    }
+                                },
+                                onReveal: {
+                                    vault.revealKey(id: entry.id)
+                                },
+                                onDelete: {
+                                    vault.removeKey(id: entry.id)
+                                }
+                            )
+                        }
                     }
-                } label: {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("Add API Key")
-                    }
-                    .foregroundColor(Theme.accent)
-                    .font(.system(size: 13, weight: .medium))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 8)
-
-                if showAddForm {
-                    addKeyForm
+                    .padding(12)
                 }
 
-                // Lock vault button
-                Button {
-                    vault.lock()
-                    pin = ""
-                } label: {
-                    HStack {
-                        Image(systemName: "lock.fill")
-                        Text("Lock Vault")
+                Divider().background(Theme.cellBorder)
+
+                // Add key toggle
+                VStack(spacing: 8) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showAddForm.toggle()
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "plus.circle.fill")
+                            Text("Add API Key")
+                        }
+                        .foregroundColor(Theme.accent)
+                        .font(.system(size: 13, weight: .medium))
                     }
-                    .font(.system(size: 12))
-                    .foregroundColor(Theme.notesSecondary)
+                    .buttonStyle(.plain)
+                    .padding(.top, 8)
+
+                    if showAddForm {
+                        addKeyForm
+                    }
+
+                    // Lock vault button
+                    Button {
+                        vault.lock()
+                        pin = ""
+                    } label: {
+                        HStack {
+                            Image(systemName: "lock.fill")
+                            Text("Lock Vault")
+                        }
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.notesSecondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.bottom, 10)
                 }
-                .buttonStyle(.plain)
-                .padding(.bottom, 10)
+            } else {
+                DocsTabView(vault: vault, docsManager: docsManager)
             }
         }
     }
