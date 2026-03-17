@@ -118,16 +118,20 @@ final class WorkspaceStore {
                 }
             }
 
-            // Save primary scrollback
-            if let session = sessionManager.session(for: cell.id),
-               let text = session.getScrollbackText(), !text.isEmpty {
-                try? scrollbackManager.save(cellID: cell.id, sessionType: .primary, content: text)
+            // Save primary scrollback (raw PTY bytes)
+            if let session = sessionManager.session(for: cell.id) {
+                let data = session.getRawScrollback()
+                if !data.isEmpty {
+                    try? scrollbackManager.saveRaw(cellID: cell.id, sessionType: .primary, data: data)
+                }
             }
 
-            // Save split scrollback
-            if let splitSession = sessionManager.splitSession(for: cell.id),
-               let text = splitSession.getScrollbackText(), !text.isEmpty {
-                try? scrollbackManager.save(cellID: cell.id, sessionType: .split, content: text)
+            // Save split scrollback (raw PTY bytes)
+            if let splitSession = sessionManager.splitSession(for: cell.id) {
+                let data = splitSession.getRawScrollback()
+                if !data.isEmpty {
+                    try? scrollbackManager.saveRaw(cellID: cell.id, sessionType: .split, data: data)
+                }
             }
         }
     }

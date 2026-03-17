@@ -6,7 +6,7 @@ final class TerminalSession {
     let cellID: UUID
     let sessionID: UUID
     let sessionType: SessionType
-    let terminalView: LocalProcessTerminalView
+    let terminalView: LoggingTerminalView
     var isRunning: Bool = true
     private var processStarted = false
 
@@ -20,7 +20,7 @@ final class TerminalSession {
         self.sessionID = UUID()
         self.sessionType = sessionType
         self.workingDirectory = workingDirectory
-        self.terminalView = LocalProcessTerminalView(frame: .zero)
+        self.terminalView = LoggingTerminalView(frame: .zero)
 
         self.shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
 
@@ -32,6 +32,9 @@ final class TerminalSession {
         terminalView.nativeBackgroundColor = Theme.terminalBackground
         terminalView.nativeForegroundColor = Theme.terminalForeground
         terminalView.caretColor = Theme.terminalCursor
+
+        // Increase scrollback buffer to 5000 lines (SwiftTerm default is 500)
+        terminalView.getTerminal().changeHistorySize(5000)
 
         if startImmediately {
             start()
@@ -51,23 +54,15 @@ final class TerminalSession {
         )
     }
 
-    /// Feed scrollback text into the terminal emulator (before start).
-    /// Also increases scrollback history to 5000 lines.
-    func feedScrollback(_ text: String) {
-        // Increase scrollback buffer to 5000 lines (SwiftTerm default is 500)
-        let terminal = terminalView.getTerminal()
-        terminal.changeHistorySize(5000)
-
-        // Feed restored content
-        terminalView.feed(text: text)
-        terminalView.feed(text: "\n── restored scrollback ──\n")
+    /// Replay raw PTY bytes into the terminal (before start).
+    /// This restores the exact visual state including colors, cursor positioning, etc.
+    func replayScrollback(_ data: Data) {
+        terminalView.replayLog(data)
     }
 
-    /// Read the current scrollback buffer as text.
-    func getScrollbackText() -> String? {
-        let terminal = terminalView.getTerminal()
-        let data = terminal.getBufferAsData(kind: .normal, encoding: .utf8)
-        return String(data: data, encoding: .utf8)
+    /// Get the raw PTY output log for saving to disk.
+    func getRawScrollback() -> Data {
+        return terminalView.getRawLog()
     }
 
     func send(_ text: String) {
