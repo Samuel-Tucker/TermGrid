@@ -148,8 +148,12 @@ struct ContentView: View {
                 }
             }
             .onChange(of: store.workspace.visibleCells.map(\.id), initial: true) { _, cellIDs in
+                let idSet = Set(cellIDs)
                 for id in cellIDs where cellUIStates[id] == nil {
                     cellUIStates[id] = CellUIState()
+                }
+                for key in cellUIStates.keys where !idSet.contains(key) {
+                    cellUIStates.removeValue(forKey: key)
                 }
             }
             .onChange(of: vault.decryptedKeys) { _, newKeys in
@@ -183,6 +187,15 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .commandPaletteToggleAPILocker)) { _ in
                 showAPILocker.toggle()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteSwitchGrid)) { _ in
+                let presets = GridPreset.allCases
+                if let idx = presets.firstIndex(of: store.workspace.gridLayout),
+                   idx + 1 < presets.count {
+                    store.setGridPreset(presets[idx + 1])
+                } else {
+                    store.setGridPreset(presets[0])
+                }
             }
 
             // Command palette overlay
