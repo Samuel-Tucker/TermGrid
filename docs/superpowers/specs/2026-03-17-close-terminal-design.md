@@ -23,26 +23,26 @@ Orange X icon in the cell header, separated from other dock-style buttons by ~8p
 - Icon: `xmark.circle.fill`
 - Resting color: `Theme.accent` (warm gold/orange)
 - Hover: scales up like other header buttons, tooltip "Close terminal"
-- Added to `headerButtonIDs` as `"close"` for neighbor-magnification
+- NOT added to `headerButtonIDs` — the gap means it doesn't participate in dock-style neighbor magnification. It scales on its own hover only.
 - Always orange (not just on hover) to signal destructive action
 
 Header layout becomes: `[Label] [repo pill] [Spacer] [splitH] [splitV] [explorer] [notes] [8px gap] [X]`
 
 ## Confirmation Bar
 
-When X is clicked, a bar slides down from the header into the cell body area.
+When X is clicked, a bar is inserted into the CellView VStack between the header divider and the cell body `HStack`. It pushes the terminal content down (not an overlay).
 
 - Background: `Theme.headerBackground` with 4px `Theme.accent` left border stripe
 - Text: "Close this terminal?" in `Theme.headerText`, size 12
 - Buttons: "Cancel" (plain, `Theme.headerIcon`) and "Close" (orange accent, semibold)
-- Animation: `.transition(.move(edge: .top).combined(with: .opacity))`
+- Animation: wrapped in `if showCloseConfirmation` with `.transition(.move(edge: .top).combined(with: .opacity))`
 - Cancel dismisses the bar, Close triggers cell removal
 
 If the cell has a split, both terminals are killed. The entire cell is removed.
 
 ## Cell Removal Flow
 
-1. User confirms close → `onCloseCell` callback fires from CellView to ContentView
+1. User confirms close → `onCloseCell: () -> Void` callback fires from CellView to ContentView
 2. ContentView calls `sessionManager.killSession(for: cellID)` — kills primary + split
 3. `WorkspaceStore.removeCell(id:)` removes cell from `workspace.cells` array
 4. Remaining cells shift to fill gap (natural array removal)
@@ -50,19 +50,21 @@ If the cell has a split, both terminals are killed. The entire cell is removed.
 
 ## Grid Downsizing Algorithm
 
-Find the smallest `GridPreset` whose `cellCount` >= remaining cell count:
+Find the smallest `GridPreset` whose `cellCount` >= remaining cell count. When multiple presets have the same `cellCount`, prefer wider layouts (more columns).
 
-| Remaining cells | Preset | Slots |
-|-----------------|--------|-------|
-| 6+ | 3x3 | 9 |
-| 5 | 3x2 | 6 |
-| 4 | 2x2 | 4 |
-| 3 | 2x2 | 4 (one empty) |
-| 2 | 2x1 | 2 |
-| 1 | 1x1 | 1 |
-| 0 | 1x1 | 1 (empty) |
+Available presets: `1x1` (1), `2x1` (2), `1x2` (2), `2x2` (4), `3x2` (6), `2x3` (6), `3x3` (9).
 
-Empty slots render as blank space — the grid already handles `index < cells.count` checks.
+| Remaining cells | Preset | Slots | Tie-break |
+|-----------------|--------|-------|-----------|
+| 7-9 | 3x3 | 9 | |
+| 5-6 | 3x2 | 6 | Prefer 3x2 over 2x3 (wider) |
+| 4 | 2x2 | 4 | |
+| 3 | 2x2 | 4 (one empty) | |
+| 2 | 2x1 | 2 | Prefer 2x1 over 1x2 (wider) |
+| 1 | 1x1 | 1 | |
+| 0 | 1x1 | 1 | Empty grid — shows blank background |
+
+Empty slots render as blank space — the grid already handles `index < cells.count` checks. Closing the last cell leaves an empty 1x1 grid (just the app background). The user can resize the grid via the toolbar picker to create new cells.
 
 ## Files Modified
 
