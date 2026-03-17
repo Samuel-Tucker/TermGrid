@@ -48,21 +48,21 @@ func start() {
 
 ## Scrollback History Increase
 
-SwiftTerm defaults to 500 rows. Must set to 5,000:
+SwiftTerm defaults to 500 rows. Must set to 5,000 after view creation:
 ```swift
-// When creating LocalProcessTerminalView, pass TerminalOptions
-let options = TerminalOptions(scrollbackRows: 5000)
+let view = LocalProcessTerminalView(frame: .zero)
+view.getTerminal().changeHistorySize(5000)  // Must happen before startProcess()
 ```
 
-Note: `LocalProcessTerminalView(frame:)` may not accept options directly. Need to verify the SwiftTerm API — may require setting `terminal.scrollbackRows` after creation or using a different initializer.
+`LocalProcessTerminalView(frame:)` does not accept `TerminalOptions` — the terminal is created internally with defaults. Use `changeHistorySize()` on the `Terminal` object after init.
 
 ## SwiftTerm API
 
 | Operation | API | Notes |
 |-----------|-----|-------|
-| Read scrollback | `terminal.getBufferAsData(kind: .normal, encoding: .utf8)` | Always `.normal` — `.active` misses scrollback in alternate screen |
+| Read scrollback | `terminalView.getTerminal().getBufferAsData(kind: .normal, encoding: .utf8)` | Always `.normal` — `.active` misses scrollback in alternate screen |
 | Replay text | `terminalView.feed(text:)` | Writes to emulator, not PTY. Use BEFORE `startProcess()` |
-| History limit | `TerminalOptions(scrollbackRows: 5000)` | Default is 500, must increase |
+| Set history size | `terminalView.getTerminal().changeHistorySize(5000)` | Default is 500, must increase |
 
 ## ScrollbackManager
 
