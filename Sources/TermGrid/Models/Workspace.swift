@@ -42,11 +42,14 @@ struct Cell: Codable, Identifiable {
     var splitTerminalLabel: String
     var explorerDirectory: String
     var explorerViewMode: ExplorerViewMode
+    var splitDirection: String?   // "horizontal", "vertical", or nil
+    var showExplorer: Bool
 
     init(id: UUID = UUID(), label: String = "", notes: String = "",
          workingDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path,
          terminalLabel: String = "", splitTerminalLabel: String = "",
-         explorerDirectory: String = "", explorerViewMode: ExplorerViewMode = .grid) {
+         explorerDirectory: String = "", explorerViewMode: ExplorerViewMode = .grid,
+         splitDirection: String? = nil, showExplorer: Bool = false) {
         self.id = id
         self.label = label
         self.notes = notes
@@ -55,6 +58,8 @@ struct Cell: Codable, Identifiable {
         self.splitTerminalLabel = splitTerminalLabel
         self.explorerDirectory = explorerDirectory
         self.explorerViewMode = explorerViewMode
+        self.splitDirection = splitDirection
+        self.showExplorer = showExplorer
     }
 
     init(from decoder: Decoder) throws {
@@ -68,6 +73,8 @@ struct Cell: Codable, Identifiable {
         splitTerminalLabel = (try? container.decode(String.self, forKey: .splitTerminalLabel)) ?? ""
         explorerDirectory = (try? container.decode(String.self, forKey: .explorerDirectory)) ?? ""
         explorerViewMode = (try? container.decode(ExplorerViewMode.self, forKey: .explorerViewMode)) ?? .grid
+        splitDirection = try? container.decode(String.self, forKey: .splitDirection)
+        showExplorer = (try? container.decode(Bool.self, forKey: .showExplorer)) ?? false
     }
 }
 
