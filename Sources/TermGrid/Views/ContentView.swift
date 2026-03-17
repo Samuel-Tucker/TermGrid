@@ -3,11 +3,13 @@ import SwiftUI
 struct ContentView: View {
     @Bindable var store: WorkspaceStore
     var sessionManager: TerminalSessionManager
+    @Bindable var vault: APIKeyVault
+    @State private var showAPILocker = false
 
     private var rows: Int { store.workspace.gridLayout.rows }
     private var columns: Int { store.workspace.gridLayout.columns }
 
-    var body: some View {
+    private var gridContent: some View {
         GeometryReader { geo in
             let spacing: CGFloat = 12
             let padding: CGFloat = 16
@@ -46,13 +48,10 @@ struct ContentView: View {
                                     },
                                     onToggleSplit: { direction in
                                         if sessionManager.splitDirection(for: cell.id) == direction {
-                                            // Same direction — toggle off
                                             sessionManager.killSplitSession(for: cell.id)
                                         } else if sessionManager.splitSession(for: cell.id) != nil {
-                                            // Different direction — switch (keep session, change layout)
                                             sessionManager.changeSplitDirection(for: cell.id, to: direction)
                                         } else {
-                                            // No split — create
                                             sessionManager.createSplitSession(for: cell.id, workingDirectory: cell.workingDirectory, direction: direction)
                                         }
                                     },
@@ -82,6 +81,16 @@ struct ContentView: View {
             }
             .padding(padding)
         }
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            gridContent
+            if showAPILocker {
+                Divider()
+                APILockerPanel(vault: vault)
+            }
+        }
         .background(Theme.appBackground)
         .toolbar {
             ToolbarItem {
@@ -90,6 +99,23 @@ struct ContentView: View {
                     set: { store.setGridPreset($0) }
                 ))
             }
+            ToolbarItem {
+                Button {
+                    showAPILocker.toggle()
+                } label: {
+                    Image(systemName: vault.state == .noVault || vault.state == .locked
+                          ? "lock.fill" : "lock.open.fill")
+                        .foregroundColor(vault.state == .locked || vault.state == .noVault
+                                         ? Theme.headerIcon : Theme.accent)
+                }
+                .help("API Locker")
+            }
+        }
+        .onChange(of: vault.decryptedKeys) { _, newKeys in
+            sessionManager.vaultKeys = newKeys
+        }
+        .onAppear {
+            sessionManager.vaultKeys = vault.decryptedKeys
         }
     }
 }

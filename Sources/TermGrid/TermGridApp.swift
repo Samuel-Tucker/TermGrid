@@ -19,11 +19,12 @@ struct TermGridApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var store = WorkspaceStore()
     @State private var sessionManager = TerminalSessionManager()
+    @State private var vault = APIKeyVault()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         Window("TermGrid", id: "main") {
-            ContentView(store: store, sessionManager: sessionManager)
+            ContentView(store: store, sessionManager: sessionManager, vault: vault)
                 .frame(minWidth: 600, minHeight: 400)
                 .preferredColorScheme(.dark)
                 .onAppear {
@@ -37,6 +38,7 @@ struct TermGridApp: App {
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     store.flush()
+                    vault.lock()
                     sessionManager.killAll()
                 }
         }
