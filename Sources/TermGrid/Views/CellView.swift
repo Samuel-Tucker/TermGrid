@@ -17,12 +17,14 @@ struct CellView: View {
     let onUpdateSplitTerminalLabel: (String) -> Void
     let onUpdateExplorerDirectory: (String) -> Void
     let onUpdateExplorerViewMode: (ExplorerViewMode) -> Void
+    let onCloseCell: () -> Void
 
     @State private var isEditingLabel = false
     @State private var labelDraft = ""
     @State private var showNotes = true
     @State private var showExplorer = false
     @State private var hoveredHeaderButton: String? = nil
+    @State private var showCloseConfirmation = false
     @State private var focusMonitor: Any? = nil
     @FocusState private var labelFieldFocused: Bool
 
@@ -38,6 +40,44 @@ struct CellView: View {
                 .zIndex(1)
 
             Theme.divider.frame(height: 1)
+
+            // Close confirmation bar
+            if showCloseConfirmation {
+                HStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Theme.accent)
+                        .frame(width: 4)
+                        .padding(.vertical, 4)
+
+                    Text("Close this terminal?")
+                        .font(.system(size: 12))
+                        .foregroundColor(Theme.headerText)
+                        .padding(.leading, 10)
+
+                    Spacer()
+
+                    Button("Cancel") {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showCloseConfirmation = false
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.system(size: 11))
+                    .foregroundColor(Theme.headerIcon)
+
+                    Button("Close") {
+                        onCloseCell()
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Theme.accent)
+                    .padding(.leading, 8)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Theme.headerBackground)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
 
             // Body: terminal/explorer + optional notes panel
             HStack(spacing: 0) {
@@ -181,6 +221,43 @@ struct CellView: View {
                 label: showNotes ? "Hide notes" : "Show notes",
                 action: { showNotes.toggle() }
             )
+
+            // Gap separator before destructive action
+            Spacer().frame(width: 8)
+
+            // Close button — always orange, not part of dock neighbor magnification
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showCloseConfirmation = true
+                }
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(Theme.accent)
+            }
+            .buttonStyle(.borderless)
+            .scaleEffect(hoveredHeaderButton == "close" ? 1.35 : 1.0)
+            .overlay(alignment: .top) {
+                Text("Close terminal")
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundColor(Theme.headerText)
+                    .fixedSize()
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(Theme.cellBackground)
+                            .shadow(color: .black.opacity(0.25), radius: 4, y: -2)
+                    )
+                    .offset(y: hoveredHeaderButton == "close" ? -24 : -16)
+                    .opacity(hoveredHeaderButton == "close" ? 1 : 0)
+            }
+            .onHover { hovering in
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                    hoveredHeaderButton = hovering ? "close" : nil
+                }
+            }
+            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: hoveredHeaderButton)
         }
     }
 
