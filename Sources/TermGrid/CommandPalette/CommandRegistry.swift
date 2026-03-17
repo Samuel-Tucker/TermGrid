@@ -150,6 +150,7 @@ final class CommandRegistry {
 // MARK: - Notification Names for Command Palette Actions
 
 extension Notification.Name {
+    static let toggleCommandPalette = Notification.Name("TermGrid.toggleCommandPalette")
     static let commandPaletteNewFile = Notification.Name("TermGrid.commandPalette.newFile")
     static let commandPaletteNewFolder = Notification.Name("TermGrid.commandPalette.newFolder")
     static let commandPaletteToggleHidden = Notification.Name("TermGrid.commandPalette.toggleHidden")

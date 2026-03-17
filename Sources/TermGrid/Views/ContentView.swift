@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var cellUIStates: [UUID: CellUIState] = [:]
     @State private var focusedCellID: UUID? = nil
     @State private var focusMonitor: Any? = nil
+    @State private var showCommandPalette = false
+    @State private var commandRegistry = CommandRegistry()
 
     private var rows: Int { store.workspace.gridLayout.rows }
     private var columns: Int { store.workspace.gridLayout.columns }
@@ -100,73 +102,110 @@ struct ContentView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            gridContent
-            if showAPILocker {
-                Divider()
-                APILockerPanel(vault: vault, docsManager: docsManager)
-            }
-        }
-        .background(Theme.appBackground)
-        .toolbar {
-            ToolbarItem {
-                GridPickerView(selection: Binding(
-                    get: { store.workspace.gridLayout },
-                    set: { store.setGridPreset($0) }
-                ))
-            }
-            ToolbarItem {
-                Button {
-                    showAPILocker.toggle()
-                } label: {
-                    Image(systemName: vault.state == .noVault || vault.state == .locked
-                          ? "lock.fill" : "lock.open.fill")
-                        .foregroundColor(vault.state == .locked || vault.state == .noVault
-                                         ? Theme.headerIcon : Theme.accent)
-                }
-                .onHover { hovering in
-                    withAnimation(.easeInOut(duration: 0.15)) { isLockerHovered = hovering }
-                }
-                .overlay(alignment: .bottom) {
-                    Text("API Locker")
-                        .font(.system(size: 9, weight: .medium, design: .rounded))
-                        .foregroundColor(Theme.headerText)
-                        .fixedSize()
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .fill(Theme.cellBackground)
-                                .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
-                        )
-                        .offset(y: isLockerHovered ? 28 : 20)
-                        .opacity(isLockerHovered ? 1 : 0)
+        ZStack {
+            HStack(spacing: 0) {
+                gridContent
+                if showAPILocker {
+                    Divider()
+                    APILockerPanel(vault: vault, docsManager: docsManager)
                 }
             }
-        }
-        .onChange(of: store.workspace.visibleCells.map(\.id), initial: true) { _, cellIDs in
-            for id in cellIDs where cellUIStates[id] == nil {
-                cellUIStates[id] = CellUIState()
-            }
-        }
-        .onChange(of: vault.decryptedKeys) { _, newKeys in
-            sessionManager.vaultKeys = newKeys
-        }
-        .onAppear {
-            sessionManager.vaultKeys = vault.decryptedKeys
-            focusMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { event in
-                DispatchQueue.main.async {
-                    updateFocusedCell()
+            .background(Theme.appBackground)
+            .toolbar {
+                ToolbarItem {
+                    GridPickerView(selection: Binding(
+                        get: { store.workspace.gridLayout },
+                        set: { store.setGridPreset($0) }
+                    ))
                 }
-                return event
+                ToolbarItem {
+                    Button {
+                        showAPILocker.toggle()
+                    } label: {
+                        Image(systemName: vault.state == .noVault || vault.state == .locked
+                              ? "lock.fill" : "lock.open.fill")
+                            .foregroundColor(vault.state == .locked || vault.state == .noVault
+                                             ? Theme.headerIcon : Theme.accent)
+                    }
+                    .onHover { hovering in
+                        withAnimation(.easeInOut(duration: 0.15)) { isLockerHovered = hovering }
+                    }
+                    .overlay(alignment: .bottom) {
+                        Text("API Locker")
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundColor(Theme.headerText)
+                            .fixedSize()
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(Theme.cellBackground)
+                                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                            )
+                            .offset(y: isLockerHovered ? 28 : 20)
+                            .opacity(isLockerHovered ? 1 : 0)
+                    }
+                }
+            }
+            .onChange(of: store.workspace.visibleCells.map(\.id), initial: true) { _, cellIDs in
+                for id in cellIDs where cellUIStates[id] == nil {
+                    cellUIStates[id] = CellUIState()
+                }
+            }
+            .onChange(of: vault.decryptedKeys) { _, newKeys in
+                sessionManager.vaultKeys = newKeys
+            }
+            .onAppear {
+                sessionManager.vaultKeys = vault.decryptedKeys
+                focusMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .keyDown]) { event in
+                    // Cmd+Shift+P toggles command palette
+                    if event.type == .keyDown,
+                       event.modifierFlags.contains([.command, .shift]),
+                       event.charactersIgnoringModifiers == "p" {
+                        showCommandPalette.toggle()
+                        return nil // consume the event
+                    }
+                    // Track focused cell on any event
+                    DispatchQueue.main.async {
+                        updateFocusedCell()
+                    }
+                    return event
+                }
+            }
+            .onDisappear {
+                if let monitor = focusMonitor {
+                    NSEvent.removeMonitor(monitor)
+                    focusMonitor = nil
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPalette)) { _ in
+                showCommandPalette.toggle()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteToggleAPILocker)) { _ in
+                showAPILocker.toggle()
+            }
+
+            // Command palette overlay
+            if showCommandPalette {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        showCommandPalette = false
+                    }
+
+                CommandPaletteView(
+                    registry: commandRegistry,
+                    context: CommandContext(
+                        focusedCellID: focusedCellID,
+                        cellUIState: focusedCellID.flatMap { cellUIStates[$0] },
+                        store: store,
+                        sessionManager: sessionManager
+                    ),
+                    onDismiss: { showCommandPalette = false }
+                )
             }
         }
-        .onDisappear {
-            if let monitor = focusMonitor {
-                NSEvent.removeMonitor(monitor)
-                focusMonitor = nil
-            }
-        }
+        .animation(.easeOut(duration: 0.15), value: showCommandPalette)
     }
 
     private func updateFocusedCell() {
