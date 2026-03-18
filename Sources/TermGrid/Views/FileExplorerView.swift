@@ -8,15 +8,18 @@ struct FileExplorerView: View {
     let onViewModeChange: (ExplorerViewMode) -> Void
 
     @State private var model: FileExplorerModel
-    @State private var previewingFile: String? = nil
+    @Binding var previewingFile: String?
     @State private var isCreatingNewItem = false
     @State private var newItemIsFolder = false
     @State private var newItemName = ""
 
-    init(cellID: UUID, rootPath: String, viewMode: ExplorerViewMode, onViewModeChange: @escaping (ExplorerViewMode) -> Void) {
+    init(cellID: UUID, rootPath: String, viewMode: ExplorerViewMode,
+         previewingFile: Binding<String?>,
+         onViewModeChange: @escaping (ExplorerViewMode) -> Void) {
         self.cellID = cellID
         self.rootPath = rootPath
         self.viewMode = viewMode
+        self._previewingFile = previewingFile
         self.onViewModeChange = onViewModeChange
         self._model = State(initialValue: FileExplorerModel(rootPath: rootPath))
     }
