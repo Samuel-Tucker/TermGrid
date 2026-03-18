@@ -13,6 +13,7 @@ final class TerminalSessionManager {
     private var splitSessions: [UUID: TerminalSession] = [:]
     private var splitDirections: [UUID: SplitDirection] = [:]
     var vaultKeys: [String: String] = [:]
+    var floatingSession: TerminalSession? = nil
 
     func session(for cellID: UUID) -> TerminalSession? {
         sessions[cellID]
@@ -81,11 +82,31 @@ final class TerminalSessionManager {
         splitDirections.removeValue(forKey: cellID)
     }
 
+    @discardableResult
+    func createFloatingSession() -> TerminalSession {
+        floatingSession?.kill()
+        let session = TerminalSession(
+            cellID: UUID(),
+            workingDirectory: FileManager.default.homeDirectoryForCurrentUser.path,
+            sessionType: .primary,
+            environment: buildEnvironment()
+        )
+        floatingSession = session
+        return session
+    }
+
+    func killFloatingSession() {
+        floatingSession?.kill()
+        floatingSession = nil
+    }
+
     func killAll() {
         for session in sessions.values { session.kill() }
         sessions.removeAll()
         for session in splitSessions.values { session.kill() }
         splitSessions.removeAll()
         splitDirections.removeAll()
+        floatingSession?.kill()
+        floatingSession = nil
     }
 }
