@@ -44,6 +44,13 @@ final class CommandRegistry {
                 action: { ctx in ctx.cellUIState?.showExplorer.toggle() }
             ),
             AppCommand(
+                id: "toggle-git-sidebar",
+                title: "Toggle Git Sidebar",
+                icon: "arrow.triangle.branch",
+                scope: .cell,
+                action: { ctx in ctx.cellUIState?.showGit.toggle() }
+            ),
+            AppCommand(
                 id: "set-terminal-directory",
                 title: "Set Terminal Directory",
                 icon: "folder",

@@ -192,4 +192,5 @@ final class ComposeNSTextView: NSTextView {
 extension Notification.Name {
     static let cyclePaneFocus = Notification.Name("TermGrid.cyclePaneFocus")
     static let focusNotesPanel = Notification.Name("TermGrid.focusNotesPanel")
+    static let focusGitPanel = Notification.Name("TermGrid.focusGitPanel")
 }
