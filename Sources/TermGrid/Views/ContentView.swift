@@ -15,6 +15,7 @@ struct ContentView: View {
     @State private var focusMonitor: Any? = nil
     @State private var showCommandPalette = false
     @State private var commandRegistry = CommandRegistry()
+    @State private var showFloatingPane = false
 
     private var rows: Int { store.workspace.gridLayout.rows }
     private var columns: Int { store.workspace.gridLayout.columns }
@@ -128,6 +129,15 @@ struct ContentView: View {
             }
             .padding(padding)
         }
+        .overlay(alignment: .bottomTrailing) {
+            if showFloatingPane, let session = sessionManager.floatingSession {
+                FloatingPaneView(session: session, onDismiss: {
+                    sessionManager.killFloatingSession()
+                    showFloatingPane = false
+                })
+                .padding(16)
+            }
+        }
     }
 
     var body: some View {
@@ -202,6 +212,18 @@ struct ContentView: View {
                         showCommandPalette.toggle()
                         return nil // consume the event
                     }
+                    if event.type == .keyDown,
+                       event.modifierFlags.contains([.command, .shift]),
+                       event.charactersIgnoringModifiers == "f" {
+                        if showFloatingPane {
+                            sessionManager.killFloatingSession()
+                            showFloatingPane = false
+                        } else {
+                            sessionManager.createFloatingSession()
+                            showFloatingPane = true
+                        }
+                        return nil
+                    }
                     // Track focused cell on any event
                     DispatchQueue.main.async {
                         updateFocusedCell()
@@ -217,6 +239,15 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPalette)) { _ in
                 showCommandPalette.toggle()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleFloatingPane)) { _ in
+                if showFloatingPane {
+                    sessionManager.killFloatingSession()
+                    showFloatingPane = false
+                } else {
+                    sessionManager.createFloatingSession()
+                    showFloatingPane = true
+                }
             }
             .onReceive(NotificationCenter.default.publisher(for: .commandPaletteToggleAPILocker)) { _ in
                 showAPILocker.toggle()

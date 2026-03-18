@@ -163,4 +163,5 @@ extension Notification.Name {
     static let commandPaletteToggleHidden = Notification.Name("TermGrid.commandPalette.toggleHidden")
     static let commandPaletteSwitchGrid = Notification.Name("TermGrid.commandPalette.switchGrid")
     static let commandPaletteToggleAPILocker = Notification.Name("TermGrid.commandPalette.toggleAPILocker")
+    static let toggleFloatingPane = Notification.Name("TermGrid.toggleFloatingPane")
 }

@@ -64,6 +64,10 @@ struct TermGridApp: App {
                     NotificationCenter.default.post(name: .toggleCommandPalette, object: nil)
                 }
                 .keyboardShortcut("p", modifiers: [.command, .shift])
+                Button("Quick Terminal") {
+                    NotificationCenter.default.post(name: .toggleFloatingPane, object: nil)
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
             }
         }
     }
