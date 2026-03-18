@@ -25,9 +25,11 @@ struct CellView: View {
     @State private var hoveredHeaderButton: String? = nil
     @State private var showCloseConfirmation = false
     @State private var focusMonitor: Any? = nil
+    @State private var gitModel = GitStatusModel()
+    @State private var previewingFile: String? = nil
     @FocusState private var labelFieldFocused: Bool
 
-    private static let headerButtonIDs = ["splitH", "splitV", "explorer", "notes"]
+    private static let headerButtonIDs = ["splitH", "splitV", "explorer", "git", "notes"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -78,8 +80,26 @@ struct CellView: View {
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // Body: terminal/explorer + optional notes panel
+            // Body: optional git sidebar + terminal/explorer + optional notes panel
             HStack(spacing: 0) {
+                if uiState.showGit {
+                    GitSidebarView(
+                        cellID: cell.id,
+                        model: gitModel,
+                        onFileClick: { path in
+                            let dir = cell.explorerDirectory.isEmpty ? cell.workingDirectory : cell.explorerDirectory
+                            let fullPath = path.hasPrefix("/") ? path : (dir as NSString).appendingPathComponent(path)
+                            previewingFile = fullPath
+                            if !uiState.showExplorer {
+                                withAnimation(.easeInOut(duration: 0.4)) {
+                                    uiState.showExplorer = true
+                                }
+                            }
+                        }
+                    )
+                    .frame(width: 160)
+                    Divider()
+                }
                 cellBody
                 if uiState.showNotes {
                     Divider()
@@ -113,6 +133,7 @@ struct CellView: View {
                 NSEvent.removeMonitor(monitor)
                 focusMonitor = nil
             }
+            gitModel.stopPolling()
         }
     }
 
@@ -211,6 +232,22 @@ struct CellView: View {
                 label: uiState.showExplorer ? "Show terminal" : "Show explorer",
                 action: {
                     withAnimation(.easeInOut(duration: 0.4)) { uiState.showExplorer.toggle() }
+                }
+            )
+
+            headerIconButton(
+                id: "git",
+                systemName: "arrow.triangle.branch",
+                label: uiState.showGit ? "Hide git" : "Show git",
+                action: {
+                    uiState.showGit.toggle()
+                    if uiState.showGit {
+                        let dir = cell.explorerDirectory.isEmpty ? cell.workingDirectory : cell.explorerDirectory
+                        gitModel.setDirectory(dir)
+                        gitModel.startPolling()
+                    } else {
+                        gitModel.stopPolling()
+                    }
                 }
             )
 
@@ -333,6 +370,7 @@ struct CellView: View {
                 cellID: cell.id,
                 rootPath: cell.explorerDirectory.isEmpty ? cell.workingDirectory : cell.explorerDirectory,
                 viewMode: cell.explorerViewMode,
+                previewingFile: $previewingFile,
                 onViewModeChange: onUpdateExplorerViewMode
             )
             .opacity(uiState.showExplorer ? 1 : 0)
@@ -521,34 +559,36 @@ struct CellView: View {
     private func cycleFocus() {
         guard let window = NSApp.keyWindow else { return }
         let currentResponder = window.firstResponder
-
-        // Scope search to the current cell's view subtree
         let container = cellContainer(for: currentResponder) ?? window.contentView
 
-        // Determine current focus: terminal, compose, or notes
         let isTerminal = currentResponder is SwiftTerm.TerminalView
             || (currentResponder?.isKind(of: NSClassFromString("SwiftTerm.TerminalView") ?? NSView.self) ?? false)
         let isCompose = currentResponder is ComposeNSTextView
 
         if isTerminal {
-            // Terminal → Compose: find the ComposeNSTextView in THIS cell
+            // Terminal → Compose
             if let compose = findView(ofType: ComposeNSTextView.self, in: container) {
                 window.makeFirstResponder(compose)
             }
         } else if isCompose {
-            if uiState.showNotes {
-                // Compose → Notes
+            // Compose → Git (if visible) → Notes (if visible) → Terminal
+            if uiState.showGit {
+                NotificationCenter.default.post(name: .focusGitPanel, object: cell.id)
+            } else if uiState.showNotes {
                 NotificationCenter.default.post(name: .focusNotesPanel, object: cell.id)
             } else {
-                // Compose → Terminal (notes hidden)
                 if let term = findView(ofType: SwiftTerm.LocalProcessTerminalView.self, in: container) {
                     window.makeFirstResponder(term)
                 }
             }
         } else {
-            // Notes or other → Terminal
-            if let term = findView(ofType: SwiftTerm.LocalProcessTerminalView.self, in: container) {
-                window.makeFirstResponder(term)
+            // In git or notes panel → try next, then terminal
+            if uiState.showNotes {
+                NotificationCenter.default.post(name: .focusNotesPanel, object: cell.id)
+            } else {
+                if let term = findView(ofType: SwiftTerm.LocalProcessTerminalView.self, in: container) {
+                    window.makeFirstResponder(term)
+                }
             }
         }
     }
