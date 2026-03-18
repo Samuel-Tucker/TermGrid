@@ -41,5 +41,5 @@ enum AgentType: String, Codable {
 }
 
 enum EventType: String, Codable {
-    case complete, needsInput
+    case complete, needsInput, started
 }

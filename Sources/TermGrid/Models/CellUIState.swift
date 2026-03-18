@@ -8,4 +8,6 @@ final class CellUIState {
     var showNotes: Bool = true
     var showExplorer: Bool = false
     var showGit: Bool = false
+    /// Agent work shutter — dims terminal when agent is busy (opt-in)
+    var shutterEnabled: Bool = false
 }

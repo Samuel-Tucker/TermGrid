@@ -3,7 +3,7 @@ import Foundation
 enum HookInstaller {
     private static let hooksDir = NSHomeDirectory() + "/.termgrid/hooks"
     private static let versionFile = hooksDir + "/.version"
-    private static let currentVersion = "1"
+    private static let currentVersion = "2"
 
     static func installIfNeeded() {
         let fm = FileManager.default
@@ -23,6 +23,9 @@ enum HookInstaller {
         if [ "$EVENT" = "Stop" ]; then
           MESSAGE=$(echo "$PAYLOAD" | jq -r '.last_assistant_message // ""')
           EVENT_TYPE="complete"
+        elif [ "$EVENT" = "Start" ]; then
+          MESSAGE=""
+          EVENT_TYPE="started"
         else
           MESSAGE=$(echo "$PAYLOAD" | jq -r '.message // ""')
           EVENT_TYPE="needsInput"
@@ -86,7 +89,7 @@ enum HookInstaller {
 
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
 
-        for event in ["Stop", "Notification"] {
+        for event in ["Stop", "Notification", "Start"] {
             var eventHooks = hooks[event] as? [[String: Any]] ?? []
             eventHooks.removeAll { entry in
                 if let entryHooks = entry["hooks"] as? [[String: Any]] {
