@@ -9,6 +9,8 @@ class LoggingTerminalView: LocalProcessTerminalView {
     static let maxLogSize = 1_000_000
 
     private var ptyLog: [UInt8] = []
+    var onPatternMatch: ((PatternMatch) -> Void)? = nil
+    private var patternMatcher = OutputPatternMatcher()
 
     override func dataReceived(slice: ArraySlice<UInt8>) {
         ptyLog.append(contentsOf: slice)
@@ -17,6 +19,14 @@ class LoggingTerminalView: LocalProcessTerminalView {
         if ptyLog.count > Self.maxLogSize {
             let excess = ptyLog.count - Self.maxLogSize
             ptyLog.removeFirst(excess)
+        }
+
+        // Scan for notification patterns
+        if let callback = onPatternMatch {
+            let matches = patternMatcher.processChunk(Array(slice))
+            for match in matches {
+                callback(match)
+            }
         }
 
         super.dataReceived(slice: slice)

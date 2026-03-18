@@ -14,6 +14,16 @@ final class TerminalSessionManager {
     private var splitDirections: [UUID: SplitDirection] = [:]
     var vaultKeys: [String: String] = [:]
     var floatingSession: TerminalSession? = nil
+    var notificationStates: [UUID: CellNotificationState] = [:]
+
+    func notificationState(for cellID: UUID) -> CellNotificationState {
+        if let existing = notificationStates[cellID] {
+            return existing
+        }
+        let state = CellNotificationState()
+        notificationStates[cellID] = state
+        return state
+    }
 
     func session(for cellID: UUID) -> TerminalSession? {
         sessions[cellID]
@@ -46,6 +56,10 @@ final class TerminalSessionManager {
                                        sessionType: .primary, environment: buildEnvironment(),
                                        startImmediately: startImmediately)
         sessions[cellID] = session
+        let notifState = notificationState(for: cellID)
+        session.onNotification = { match in
+            notifState.trigger(severity: match.severity, pattern: match.pattern)
+        }
         return session
     }
 
@@ -61,6 +75,10 @@ final class TerminalSessionManager {
                                        startImmediately: startImmediately)
         splitSessions[cellID] = session
         splitDirections[cellID] = direction
+        let notifState = notificationState(for: cellID)
+        session.onNotification = { match in
+            notifState.trigger(severity: match.severity, pattern: match.pattern)
+        }
         return session
     }
 

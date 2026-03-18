@@ -8,6 +8,7 @@ final class TerminalSession {
     let sessionType: SessionType
     let terminalView: LoggingTerminalView
     var isRunning: Bool = true
+    var onNotification: ((PatternMatch) -> Void)? = nil
     private var processStarted = false
 
     private let shell: String
@@ -35,6 +36,12 @@ final class TerminalSession {
 
         // Increase scrollback buffer to 5000 lines (SwiftTerm default is 500)
         terminalView.getTerminal().changeHistorySize(5000)
+
+        terminalView.onPatternMatch = { [weak self] match in
+            Task { @MainActor in
+                self?.onNotification?(match)
+            }
+        }
 
         if startImmediately {
             start()
