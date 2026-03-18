@@ -10,6 +10,7 @@ struct FloatingPaneView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var paneSize: CGSize = CGSize(width: 350, height: 250)
     @State private var resizeDelta: CGSize = .zero
+    @State private var hoveredButton: String? = nil
 
     private let minWidth: CGFloat = 280
     private let minHeight: CGFloat = 180
@@ -34,25 +35,18 @@ struct FloatingPaneView: View {
                 Spacer()
 
                 // Drop into grid button
-                Button {
-                    onDropIntoGrid()
-                } label: {
-                    Image(systemName: "rectangle.inset.filled.and.person.filled")
-                        .font(.system(size: 10))
-                        .foregroundColor(Theme.headerIcon)
-                }
-                .buttonStyle(.borderless)
-                .help("Add to grid")
+                floatingTitleButton(
+                    systemName: "rectangle.inset.filled.and.person.filled",
+                    label: "Add to grid",
+                    action: { onDropIntoGrid() }
+                )
 
                 // Close button
-                Button {
-                    onDismiss()
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(Theme.headerIcon)
-                }
-                .buttonStyle(.borderless)
+                floatingTitleButton(
+                    systemName: "xmark.circle.fill",
+                    label: "Close",
+                    action: { onDismiss() }
+                )
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -94,24 +88,60 @@ struct FloatingPaneView: View {
         .shadow(color: .black.opacity(0.4), radius: 12)
         // Resize handle — bottom-right corner
         .overlay(alignment: .bottomTrailing) {
-            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                .font(.system(size: 9))
-                .foregroundColor(Theme.headerIcon.opacity(0.6))
-                .frame(width: 20, height: 20)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            resizeDelta = value.translation
-                        }
-                        .onEnded { value in
-                            paneSize.width = currentWidth
-                            paneSize.height = currentHeight
-                            resizeDelta = .zero
-                        }
-                )
-                .padding(4)
+            ZStack {
+                // Background for visibility
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Theme.headerBackground)
+                    .frame(width: 18, height: 18)
+                Image(systemName: "arrow.up.backward.and.arrow.down.forward")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(Theme.accent)
+            }
+            .frame(width: 22, height: 22)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        resizeDelta = value.translation
+                    }
+                    .onEnded { value in
+                        paneSize.width = currentWidth
+                        paneSize.height = currentHeight
+                        resizeDelta = .zero
+                    }
+            )
+            .padding(4)
         }
         .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
+    }
+
+    @ViewBuilder
+    private func floatingTitleButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 11))
+                .foregroundColor(hoveredButton == label ? Theme.accent : Theme.headerIcon)
+        }
+        .buttonStyle(.borderless)
+        .overlay(alignment: .bottom) {
+            Text(label)
+                .font(.system(size: 8, weight: .medium, design: .rounded))
+                .foregroundColor(Theme.headerText)
+                .fixedSize()
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(Theme.cellBackground)
+                        .shadow(color: .black.opacity(0.25), radius: 3, y: 2)
+                )
+                .offset(y: hoveredButton == label ? 20 : 14)
+                .opacity(hoveredButton == label ? 1 : 0)
+        }
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                hoveredButton = hovering ? label : nil
+            }
+        }
     }
 }
