@@ -52,6 +52,19 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func postNotification(for signal: AgentSignal) {
+        // Update agent shutter state
+        let notifState = sessionManager.notificationState(for: signal.cellID)
+        switch signal.eventType {
+        case .started:
+            let name = signal.agentType == .claudeCode ? "Claude" : "Codex"
+            notifState.agentStarted(name: name)
+            return // don't post a macOS notification for "started"
+        case .complete:
+            notifState.agentFinished()
+        case .needsInput:
+            notifState.agentFinished() // agent needs user — unshutter
+        }
+
         guard Bundle.main.bundleIdentifier != nil else { return }
 
         let content = UNMutableNotificationContent()

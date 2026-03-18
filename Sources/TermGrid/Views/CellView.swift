@@ -491,6 +491,27 @@ struct CellView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Theme.cellBackground.opacity(0.85))
                     }
+
+                    // Agent work shutter
+                    if uiState.shutterEnabled && notificationState.agentBusy {
+                        VStack(spacing: 12) {
+                            Image(systemName: "gearshape.2")
+                                .font(.system(size: 28))
+                                .foregroundColor(Theme.accent)
+                                .symbolEffect(.pulse, isActive: true)
+                            Text(notificationState.agentName.isEmpty
+                                 ? "Agent at work..."
+                                 : "\(notificationState.agentName) at work...")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(Theme.overlayText)
+                            Text("Terminal will reappear when done")
+                                .font(.system(size: 10))
+                                .foregroundColor(Theme.composePlaceholder)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Theme.cellBackground.opacity(0.92))
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    }
                 }
 
                 ComposeBox { text in

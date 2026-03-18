@@ -44,6 +44,13 @@ final class CommandRegistry {
                 action: { ctx in ctx.cellUIState?.showExplorer.toggle() }
             ),
             AppCommand(
+                id: "toggle-agent-shutter",
+                title: "Toggle Agent Shutter",
+                icon: "gearshape.2",
+                scope: .cell,
+                action: { ctx in ctx.cellUIState?.shutterEnabled.toggle() }
+            ),
+            AppCommand(
                 id: "toggle-git-sidebar",
                 title: "Toggle Git Sidebar",
                 icon: "arrow.triangle.branch",
