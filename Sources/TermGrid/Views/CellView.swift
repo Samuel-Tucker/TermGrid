@@ -19,6 +19,7 @@ struct CellView: View {
     let onUpdateExplorerViewMode: (ExplorerViewMode) -> Void
     let onCloseCell: () -> Void
     let uiState: CellUIState
+    let notificationState: CellNotificationState
 
     @State private var isEditingLabel = false
     @State private var labelDraft = ""
@@ -117,6 +118,12 @@ struct CellView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Theme.cellBorder, lineWidth: 1)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(notificationDotColor, lineWidth: 2)
+                .opacity(notificationState.showBorderPulse ? 1 : 0)
+                .animation(.easeInOut(duration: 1.5).repeatCount(2, autoreverses: true), value: notificationState.showBorderPulse)
+        )
         .onAppear {
             // Ctrl+Tab local event monitor for focus cycling
             focusMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -142,6 +149,13 @@ struct CellView: View {
     @ViewBuilder
     private var headerView: some View {
         HStack {
+            // Notification dot
+            if notificationState.severity != nil {
+                Circle()
+                    .fill(notificationDotColor)
+                    .frame(width: 6, height: 6)
+            }
+
             if isEditingLabel {
                 TextField("Untitled", text: $labelDraft)
                     .textFieldStyle(.plain)
@@ -479,6 +493,17 @@ struct CellView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Theme.cellBackground)
+        }
+    }
+
+    // MARK: - Notification
+
+    private var notificationDotColor: SwiftUI.Color {
+        switch notificationState.severity {
+        case .success: return Theme.staged
+        case .error: return Theme.error
+        case .attention: return Theme.accent
+        case .none: return .clear
         }
     }
 
