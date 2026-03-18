@@ -86,7 +86,8 @@ struct ContentView: View {
                                         sessionManager.killSession(for: cell.id)
                                         store.removeCell(id: cell.id)
                                     },
-                                    uiState: uiState(for: cell.id)
+                                    uiState: uiState(for: cell.id),
+                                    notificationState: sessionManager.notificationState(for: cell.id)
                                 )
                                 .frame(width: max(cellWidth, 100), height: max(cellHeight, 100))
                                 .onAppear {
@@ -296,11 +297,13 @@ struct ContentView: View {
                     if let session = sessionManager.session(for: cell.id),
                        session.terminalView === termView {
                         focusedCellID = cell.id
+                        sessionManager.notificationState(for: cell.id).clear()
                         return
                     }
                     if let splitSession = sessionManager.splitSession(for: cell.id),
                        splitSession.terminalView === termView {
                         focusedCellID = cell.id
+                        sessionManager.notificationState(for: cell.id).clear()
                         return
                     }
                 }
