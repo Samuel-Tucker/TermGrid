@@ -26,91 +26,111 @@ struct FloatingPaneView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Title bar — draggable, with resize handle on left
-            HStack(spacing: 6) {
-                // Resize handle — in title bar to avoid compose overlap
-                Image(systemName: "arrow.up.backward.and.arrow.down.forward")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(Theme.accent.opacity(0.7))
-                    .frame(width: 16, height: 16)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                resizeDelta = value.translation
-                            }
-                            .onEnded { value in
-                                paneSize.width = currentWidth
-                                paneSize.height = currentHeight
-                                resizeDelta = .zero
-                            }
+        ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 0) {
+                // Title bar — draggable
+                HStack(spacing: 6) {
+                    Text("Quick Terminal")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Theme.headerText)
+
+                    Spacer()
+
+                    // Drop into grid button
+                    titleButton(
+                        id: "grid",
+                        systemName: "square.grid.2x2.fill",
+                        label: "Add to grid",
+                        action: { onDropIntoGrid() }
                     )
 
-                Text("Quick Terminal")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Theme.headerText)
-
-                Spacer()
-
-                // Drop into grid button
-                titleButton(
-                    id: "grid",
-                    systemName: "square.grid.2x2.fill",
-                    label: "Add to grid",
-                    action: { onDropIntoGrid() }
+                    // Close button
+                    titleButton(
+                        id: "close",
+                        systemName: "xmark.circle.fill",
+                        label: "Close",
+                        action: { onDismiss() }
+                    )
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Theme.headerBackground)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            dragOffset = value.translation
+                        }
+                        .onEnded { value in
+                            offset.width += value.translation.width
+                            offset.height += value.translation.height
+                            dragOffset = .zero
+                        }
                 )
 
-                // Close button
-                titleButton(
-                    id: "close",
-                    systemName: "xmark.circle.fill",
-                    label: "Close",
-                    action: { onDismiss() }
-                )
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Theme.headerBackground)
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        dragOffset = value.translation
+                Theme.divider.frame(height: 1)
+
+                // Terminal + compose
+                VStack(spacing: 0) {
+                    TerminalContainerView(session: session)
+                        .id(session.sessionID)
+
+                    ComposeBox { text in
+                        session.send(text)
                     }
-                    .onEnded { value in
-                        offset.width += value.translation.width
-                        offset.height += value.translation.height
-                        dragOffset = .zero
-                    }
-            )
-            .zIndex(1) // Ensure tooltips show above terminal
-
-            Theme.divider.frame(height: 1)
-
-            // Terminal + compose
-            VStack(spacing: 0) {
-                TerminalContainerView(session: session)
-                    .id(session.sessionID)
-
-                ComposeBox { text in
-                    session.send(text)
                 }
             }
-            .clipped()
+            .frame(width: currentWidth, height: currentHeight)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(Theme.cellBackground)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Theme.accent, lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            // Industry-standard corner resize grip (three diagonal lines)
+            resizeGrip
         }
-        .frame(width: currentWidth, height: currentHeight)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Theme.cellBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Theme.accent, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.4), radius: 12)
         .offset(x: offset.width + dragOffset.width, y: offset.height + dragOffset.height)
     }
+
+    // MARK: - Resize Grip (bottom-right corner, macOS standard diagonal lines)
+
+    @ViewBuilder
+    private var resizeGrip: some View {
+        Canvas { context, size in
+            let lineColor = Theme.headerIcon.opacity(0.5)
+            // Three diagonal lines from bottom-left to top-right
+            for i in 0..<3 {
+                let offset = CGFloat(i) * 4.0
+                let start = CGPoint(x: size.width - 4 - offset, y: size.height)
+                let end = CGPoint(x: size.width, y: size.height - 4 - offset)
+                var path = Path()
+                path.move(to: start)
+                path.addLine(to: end)
+                context.stroke(path, with: .color(lineColor), lineWidth: 1)
+            }
+        }
+        .frame(width: 14, height: 14)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    resizeDelta = value.translation
+                }
+                .onEnded { value in
+                    paneSize.width = currentWidth
+                    paneSize.height = currentHeight
+                    resizeDelta = .zero
+                }
+        )
+        .padding(3)
+    }
+
+    // MARK: - Title Bar Button with Hover Tooltip
 
     @ViewBuilder
     private func titleButton(id: String, systemName: String, label: String, action: @escaping () -> Void) -> some View {
@@ -134,6 +154,7 @@ struct FloatingPaneView: View {
                 )
                 .offset(y: hoveredButton == id ? -22 : -14)
                 .opacity(hoveredButton == id ? 1 : 0)
+                .allowsHitTesting(false)
         }
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {

@@ -58,22 +58,38 @@ struct CellView: View {
 
                     Spacer()
 
-                    Button("Cancel") {
+                    Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             showCloseConfirmation = false
                         }
+                    } label: {
+                        Text("Cancel")
+                            .font(.system(size: 11))
+                            .foregroundColor(Theme.headerText)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Theme.cellBorder)
+                            )
                     }
                     .buttonStyle(.borderless)
-                    .font(.system(size: 11))
-                    .foregroundColor(Theme.headerIcon)
 
-                    Button("Close") {
+                    Button {
                         onCloseCell()
+                    } label: {
+                        Text("Close")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(Theme.accent)
+                            )
                     }
                     .buttonStyle(.borderless)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Theme.accent)
-                    .padding(.leading, 8)
+                    .padding(.leading, 6)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
