@@ -113,6 +113,24 @@ final class TerminalSessionManager {
         return session
     }
 
+    /// Transfer the floating session into a grid cell (without killing it).
+    /// Returns true if transfer succeeded.
+    @discardableResult
+    func adoptFloatingSession(for cellID: UUID) -> Bool {
+        guard let session = floatingSession else { return false }
+        // Kill any existing session for this cell
+        sessions[cellID]?.kill()
+        // Move floating session into the grid
+        sessions[cellID] = session
+        floatingSession = nil
+        // Wire notification callback
+        let notifState = notificationState(for: cellID)
+        session.onNotification = { match in
+            notifState.trigger(severity: match.severity, pattern: match.pattern)
+        }
+        return true
+    }
+
     func killFloatingSession() {
         floatingSession?.kill()
         floatingSession = nil
