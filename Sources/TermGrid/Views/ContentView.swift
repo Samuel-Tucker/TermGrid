@@ -132,10 +132,16 @@ struct ContentView: View {
         }
         .overlay(alignment: .bottomTrailing) {
             if showFloatingPane, let session = sessionManager.floatingSession {
-                FloatingPaneView(session: session, onDismiss: {
-                    sessionManager.killFloatingSession()
-                    showFloatingPane = false
-                })
+                FloatingPaneView(
+                    session: session,
+                    onDismiss: {
+                        sessionManager.killFloatingSession()
+                        showFloatingPane = false
+                    },
+                    onDropIntoGrid: {
+                        dropFloatingPaneIntoGrid()
+                    }
+                )
                 .padding(16)
             }
         }
@@ -157,6 +163,21 @@ struct ContentView: View {
                         get: { store.workspace.gridLayout },
                         set: { store.setGridPreset($0) }
                     ))
+                }
+                ToolbarItem {
+                    Button {
+                        if showFloatingPane {
+                            sessionManager.killFloatingSession()
+                            showFloatingPane = false
+                        } else {
+                            sessionManager.createFloatingSession()
+                            showFloatingPane = true
+                        }
+                    } label: {
+                        Image(systemName: showFloatingPane ? "pip.fill" : "pip")
+                            .foregroundColor(showFloatingPane ? Theme.accent : Theme.headerIcon)
+                    }
+                    .help("Quick Terminal (⌘⇧F)")
                 }
                 ToolbarItem {
                     Button {
@@ -310,6 +331,24 @@ struct ContentView: View {
             }
             view = v.superview
         }
+    }
+
+    private func dropFloatingPaneIntoGrid() {
+        guard sessionManager.floatingSession != nil else { return }
+        // Grow the grid by one cell
+        let currentPreset = store.workspace.gridLayout
+        let presets = GridPreset.allCases
+        if let idx = presets.firstIndex(of: currentPreset), idx + 1 < presets.count {
+            store.setGridPreset(presets[idx + 1])
+        }
+        // The new cell is the last one — transfer the floating session's working directory
+        if let newCell = store.workspace.visibleCells.last {
+            let dir = FileManager.default.homeDirectoryForCurrentUser.path
+            store.updateWorkingDirectory(dir, for: newCell.id)
+        }
+        // Kill the floating pane
+        sessionManager.killFloatingSession()
+        showFloatingPane = false
     }
 
     private func findTerminalView(in view: NSView) -> NSView? {
