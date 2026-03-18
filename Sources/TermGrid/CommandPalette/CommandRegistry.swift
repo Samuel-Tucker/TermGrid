@@ -150,6 +150,18 @@ final class CommandRegistry {
                     )
                 }
             ),
+            AppCommand(
+                id: "quick-terminal",
+                title: "Quick Terminal (⌘⇧F)",
+                icon: "pip",
+                scope: .global,
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .toggleFloatingPane,
+                        object: nil
+                    )
+                }
+            ),
         ]
     }
 }

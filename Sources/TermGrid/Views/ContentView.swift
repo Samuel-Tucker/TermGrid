@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var showCommandPalette = false
     @State private var commandRegistry = CommandRegistry()
     @State private var showFloatingPane = false
+    @State private var isFloatHovered = false
 
     private var rows: Int { store.workspace.gridLayout.rows }
     private var columns: Int { store.workspace.gridLayout.columns }
@@ -177,7 +178,24 @@ struct ContentView: View {
                         Image(systemName: showFloatingPane ? "pip.fill" : "pip")
                             .foregroundColor(showFloatingPane ? Theme.accent : Theme.headerIcon)
                     }
-                    .help("Quick Terminal (⌘⇧F)")
+                    .onHover { hovering in
+                        withAnimation(.easeInOut(duration: 0.15)) { isFloatHovered = hovering }
+                    }
+                    .overlay(alignment: .bottom) {
+                        Text("Quick Terminal")
+                            .font(.system(size: 9, weight: .medium, design: .rounded))
+                            .foregroundColor(Theme.headerText)
+                            .fixedSize()
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(Theme.cellBackground)
+                                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                            )
+                            .offset(y: isFloatHovered ? 28 : 20)
+                            .opacity(isFloatHovered ? 1 : 0)
+                    }
                 }
                 ToolbarItem {
                     Button {
