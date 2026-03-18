@@ -172,6 +172,21 @@ struct CellView: View {
                     }
             }
 
+            // Split buttons — next to label for quick access
+            headerIconButton(
+                id: "splitH",
+                systemName: splitDirection == .horizontal ? "square.split.1x2.fill" : "square.split.1x2",
+                label: splitDirection == .horizontal ? "Close split" : "Split horizontal",
+                action: { onToggleSplit(.horizontal) }
+            )
+
+            headerIconButton(
+                id: "splitV",
+                systemName: splitDirection == .vertical ? "square.split.2x1.fill" : "square.split.2x1",
+                label: splitDirection == .vertical ? "Close split" : "Split vertical",
+                action: { onToggleSplit(.vertical) }
+            )
+
             // Repo pill badge — doubles as directory Menu
             if let badgePath = effectiveExplorerPath, badgePath != FileManager.default.homeDirectoryForCurrentUser.path {
                 Menu {
@@ -212,20 +227,6 @@ struct CellView: View {
             Spacer()
 
             // Header icon buttons with Dock-style hover magnification
-            headerIconButton(
-                id: "splitH",
-                systemName: splitDirection == .horizontal ? "square.split.1x2.fill" : "square.split.1x2",
-                label: splitDirection == .horizontal ? "Close split" : "Split horizontal",
-                action: { onToggleSplit(.horizontal) }
-            )
-
-            headerIconButton(
-                id: "splitV",
-                systemName: splitDirection == .vertical ? "square.split.2x1.fill" : "square.split.2x1",
-                label: splitDirection == .vertical ? "Close split" : "Split vertical",
-                action: { onToggleSplit(.vertical) }
-            )
-
             headerIconButton(
                 id: "explorer",
                 systemName: uiState.showExplorer ? "terminal" : "doc.text.magnifyingglass",
