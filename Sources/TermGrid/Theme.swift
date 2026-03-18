@@ -41,6 +41,7 @@ enum Theme {
 
     // MARK: - Git
     static let staged              = Color(hex: "#75BE95")
+    static let error               = Color(hex: "#E06C75")
 
     // MARK: - Session Ended Overlay
     static let overlayText         = Color(hex: "#A09A8E")
