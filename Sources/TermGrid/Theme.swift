@@ -39,6 +39,9 @@ enum Theme {
     static let accent              = Color(hex: "#C4A574")
     static let accentDisabled      = Color(hex: "#5C574F")
 
+    // MARK: - Git
+    static let staged              = Color(hex: "#75BE95")
+
     // MARK: - Session Ended Overlay
     static let overlayText         = Color(hex: "#A09A8E")
 }
