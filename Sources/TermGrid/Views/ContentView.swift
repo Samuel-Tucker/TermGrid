@@ -353,19 +353,16 @@ struct ContentView: View {
 
     private func dropFloatingPaneIntoGrid() {
         guard sessionManager.floatingSession != nil else { return }
-        // Grow the grid by one cell
+        // Grow the grid to make room for a new cell
         let currentPreset = store.workspace.gridLayout
         let presets = GridPreset.allCases
         if let idx = presets.firstIndex(of: currentPreset), idx + 1 < presets.count {
             store.setGridPreset(presets[idx + 1])
         }
-        // The new cell is the last one — transfer the floating session's working directory
+        // Transfer the floating session into the last visible cell
         if let newCell = store.workspace.visibleCells.last {
-            let dir = FileManager.default.homeDirectoryForCurrentUser.path
-            store.updateWorkingDirectory(dir, for: newCell.id)
+            sessionManager.adoptFloatingSession(for: newCell.id)
         }
-        // Kill the floating pane
-        sessionManager.killFloatingSession()
         showFloatingPane = false
     }
 
