@@ -36,20 +36,22 @@ struct NotesView: View {
                         return .handled
                     }
             } else {
-                Group {
-                    if notes.isEmpty {
-                        Text("Click to add notes...")
-                            .font(.system(size: 12))
-                            .foregroundColor(Theme.composePlaceholder)
-                    } else {
-                        Markdown(notes)
-                            .markdownTextStyle {
-                                FontSize(12)
-                                ForegroundColor(Theme.notesText)
-                            }
+                ScrollView {
+                    Group {
+                        if notes.isEmpty {
+                            Text("Click to add notes...")
+                                .font(.system(size: 12))
+                                .foregroundColor(Theme.composePlaceholder)
+                        } else {
+                            Markdown(notes)
+                                .markdownTextStyle {
+                                    FontSize(12)
+                                    ForegroundColor(Theme.notesText)
+                                }
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .contentShape(Rectangle())
                 .onTapGesture { startEdit() }
             }
