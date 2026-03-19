@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-struct Prediction {
+struct Prediction: Equatable {
     let text: String
     let score: Double
     let source: PredictionSource

@@ -157,6 +157,68 @@ final class ComposeNSTextView: NSTextView {
     var onHistoryNavigate: ((Int) -> Void)?   // -1 = up, +1 = down
     var onHistoryConfirm: (() -> Void)?
     var onHistoryDismiss: (() -> Void)?
+    // Ghost text callbacks
+    var onGhostAccept: (() -> Void)?
+    var onGhostAcceptWord: (() -> Void)?
+    var onTextChanged: ((String) -> Void)?
+
+    // MARK: - Ghost text overlay
+
+    private lazy var ghostOverlay: NSTextField = {
+        let field = NSTextField(labelWithString: "")
+        field.font = self.font
+        field.textColor = Theme.composeText.withAlphaComponent(0.30)
+        field.backgroundColor = .clear
+        field.isBezeled = false
+        field.isEditable = false
+        field.isSelectable = false
+        field.drawsBackground = false
+        field.lineBreakMode = .byTruncatingTail
+        addSubview(field)
+        return field
+    }()
+
+    private(set) var ghostVisible: Bool = false
+
+    func showGhostText(_ text: String) {
+        guard !text.isEmpty, phantomMode else {
+            hideGhostText()
+            return
+        }
+        ghostOverlay.stringValue = text
+        ghostOverlay.font = self.font
+        repositionGhostOverlay()
+        ghostOverlay.isHidden = false
+        ghostVisible = true
+    }
+
+    func hideGhostText() {
+        ghostOverlay.isHidden = true
+        ghostOverlay.stringValue = ""
+        ghostVisible = false
+    }
+
+    private func repositionGhostOverlay() {
+        guard let lm = layoutManager, let tc = textContainer else { return }
+        let cursorPos = selectedRange().location
+        let glyphRange = lm.glyphRange(forCharacterRange: NSRange(location: cursorPos, length: 0), actualCharacterRange: nil)
+        let glyphRect = lm.boundingRect(forGlyphRange: NSRange(location: max(0, glyphRange.location - 1), length: 1), in: tc)
+        let inset = textContainerInset
+        let x = cursorPos == 0 ? inset.width : glyphRect.maxX + inset.width
+        let y = glyphRect.origin.y + inset.height
+        ghostOverlay.frame.origin = NSPoint(x: x, y: y)
+        ghostOverlay.sizeToFit()
+    }
+
+    /// Current line text at cursor position (for multi-line prediction).
+    var cursorLineText: String {
+        let text = self.string
+        let cursorPos = selectedRange().location
+        let nsString = text as NSString
+        guard cursorPos <= nsString.length else { return text }
+        let lineRange = nsString.lineRange(for: NSRange(location: cursorPos, length: 0))
+        return nsString.substring(with: lineRange).trimmingCharacters(in: .newlines)
+    }
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -247,6 +309,14 @@ final class ComposeNSTextView: NSTextView {
     private func handlePhantomKeyEquivalent(with event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
+        // Tab (keyCode 48) without Ctrl = accept ghost text or no-op
+        if event.keyCode == 48 && !flags.contains(.control) {
+            if ghostVisible {
+                onGhostAccept?()
+            }
+            return true // never insert \t in phantom mode
+        }
+
         // Ctrl+Tab = cycle focus
         if event.keyCode == 48 && flags.contains(.control) {
             NotificationCenter.default.post(name: .cyclePaneFocus, object: nil,
@@ -316,6 +386,21 @@ final class ComposeNSTextView: NSTextView {
     private func handlePhantomKeyDown(with event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
+        // Tab = accept full ghost text (fallback for keyDown path)
+        if event.keyCode == 48 && !flags.contains(.control) {
+            if ghostVisible { onGhostAccept?() }
+            return // never insert \t
+        }
+
+        // Right Arrow at end of text + ghost visible = accept next word
+        if event.keyCode == 124 && ghostVisible {
+            let cursorAtEnd = selectedRange().location >= (self.string as NSString).length
+            if cursorAtEnd {
+                onGhostAcceptWord?()
+                return
+            }
+        }
+
         // Ctrl+R = open compose history
         if flags.contains(.control), event.charactersIgnoringModifiers?.lowercased() == "r" {
             onHistoryTrigger?()
@@ -366,7 +451,16 @@ final class ComposeNSTextView: NSTextView {
         }
 
         // Everything else → normal editing (arrows, backspace, printable chars)
+        // Hide ghost on any typing
+        if ghostVisible { hideGhostText() }
         super.keyDown(with: event)
+    }
+
+    // MARK: - Text change tracking
+
+    override func didChangeText() {
+        super.didChangeText()
+        onTextChanged?(self.string)
     }
 }
 
@@ -376,6 +470,7 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
     @Binding var text: String
     let pendingCharacter: String?
     let historyMode: Bool
+    let ghostText: String
     let onSend: () -> Void
     let onDismiss: () -> Void
     let onControlPassthrough: (String) -> Void
@@ -383,6 +478,9 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
     let onHistoryNavigate: (Int) -> Void
     let onHistoryConfirm: () -> Void
     let onHistoryDismiss: () -> Void
+    let onGhostAccept: () -> Void
+    let onGhostAcceptWord: () -> Void
+    let onTextChanged: (String) -> Void
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -425,6 +523,9 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
         textView.onHistoryNavigate = { coordinator.onHistoryNavigate($0) }
         textView.onHistoryConfirm = { coordinator.onHistoryConfirm() }
         textView.onHistoryDismiss = { coordinator.onHistoryDismiss() }
+        textView.onGhostAccept = { coordinator.onGhostAccept() }
+        textView.onGhostAcceptWord = { coordinator.onGhostAcceptWord() }
+        textView.onTextChanged = { coordinator.onTextChanged($0) }
 
         scrollView.documentView = textView
 
@@ -445,6 +546,12 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
             textView.string = text
         }
         textView.historyMode = historyMode
+        // Sync ghost text
+        if ghostText.isEmpty {
+            textView.hideGhostText()
+        } else {
+            textView.showGhostText(ghostText)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -453,7 +560,10 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
                     onHistoryTrigger: onHistoryTrigger,
                     onHistoryNavigate: onHistoryNavigate,
                     onHistoryConfirm: onHistoryConfirm,
-                    onHistoryDismiss: onHistoryDismiss)
+                    onHistoryDismiss: onHistoryDismiss,
+                    onGhostAccept: onGhostAccept,
+                    onGhostAcceptWord: onGhostAcceptWord,
+                    onTextChanged: onTextChanged)
     }
 
     class Coordinator: NSObject, NSTextViewDelegate {
@@ -465,13 +575,19 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
         let onHistoryNavigate: (Int) -> Void
         let onHistoryConfirm: () -> Void
         let onHistoryDismiss: () -> Void
+        let onGhostAccept: () -> Void
+        let onGhostAcceptWord: () -> Void
+        let onTextChanged: (String) -> Void
 
         init(text: Binding<String>, onSend: @escaping () -> Void, onDismiss: @escaping () -> Void,
              onControlPassthrough: @escaping (String) -> Void,
              onHistoryTrigger: @escaping () -> Void,
              onHistoryNavigate: @escaping (Int) -> Void,
              onHistoryConfirm: @escaping () -> Void,
-             onHistoryDismiss: @escaping () -> Void) {
+             onHistoryDismiss: @escaping () -> Void,
+             onGhostAccept: @escaping () -> Void,
+             onGhostAcceptWord: @escaping () -> Void,
+             onTextChanged: @escaping (String) -> Void) {
             _text = text
             self.onSend = onSend
             self.onDismiss = onDismiss
@@ -480,6 +596,9 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
             self.onHistoryNavigate = onHistoryNavigate
             self.onHistoryConfirm = onHistoryConfirm
             self.onHistoryDismiss = onHistoryDismiss
+            self.onGhostAccept = onGhostAccept
+            self.onGhostAcceptWord = onGhostAcceptWord
+            self.onTextChanged = onTextChanged
         }
 
         func textDidChange(_ notification: Notification) {
@@ -495,6 +614,7 @@ struct PhantomComposeOverlay: View {
     @Binding var text: String
     let pendingCharacter: String?
     let historyMode: Bool
+    let ghostText: String
     let onSend: (String) -> Void
     let onDismiss: () -> Void
     let onControlPassthrough: (String) -> Void
@@ -502,6 +622,9 @@ struct PhantomComposeOverlay: View {
     let onHistoryNavigate: (Int) -> Void
     let onHistoryConfirm: () -> Void
     let onHistoryDismiss: () -> Void
+    let onGhostAccept: () -> Void
+    let onGhostAcceptWord: () -> Void
+    let onTextChanged: (String) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -518,6 +641,12 @@ struct PhantomComposeOverlay: View {
 
             // Hint bar
             HStack(spacing: 12) {
+                if !ghostText.isEmpty {
+                    Text("Tab accept")
+                        .foregroundColor(Theme.accent)
+                    Text("→ word")
+                        .foregroundColor(Theme.composeChrome)
+                }
                 Text("\u{21E7}Enter send")
                     .foregroundColor(Theme.composeChrome)
                 Text("Esc dismiss")
@@ -535,13 +664,17 @@ struct PhantomComposeOverlay: View {
                 text: $text,
                 pendingCharacter: pendingCharacter,
                 historyMode: historyMode,
+                ghostText: ghostText,
                 onSend: sendText,
                 onDismiss: dismiss,
                 onControlPassthrough: onControlPassthrough,
                 onHistoryTrigger: onHistoryTrigger,
                 onHistoryNavigate: onHistoryNavigate,
                 onHistoryConfirm: onHistoryConfirm,
-                onHistoryDismiss: onHistoryDismiss
+                onHistoryDismiss: onHistoryDismiss,
+                onGhostAccept: onGhostAccept,
+                onGhostAcceptWord: onGhostAcceptWord,
+                onTextChanged: onTextChanged
             )
             .frame(minHeight: 28, maxHeight: 100)
         }

@@ -51,6 +51,13 @@ final class CommandRegistry {
                 action: { ctx in ctx.cellUIState?.shutterEnabled.toggle() }
             ),
             AppCommand(
+                id: "toggle-ghost-autocomplete",
+                title: "Toggle Ghost Autocomplete",
+                icon: "text.insert",
+                scope: .cell,
+                action: { ctx in ctx.cellUIState?.ghostEnabled.toggle() }
+            ),
+            AppCommand(
                 id: "toggle-git-sidebar",
                 title: "Toggle Git Sidebar",
                 icon: "arrow.triangle.branch",

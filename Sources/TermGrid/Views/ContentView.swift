@@ -8,6 +8,7 @@ struct ContentView: View {
     @Bindable var vault: APIKeyVault
     var docsManager: DocsManager
     var scrollbackManager: ScrollbackManager
+    var completionEngine: CompletionEngine
     @State private var showAPILocker = false
     @State private var isLockerHovered = false
     @State private var cellUIStates: [UUID: CellUIState] = [:]
@@ -93,7 +94,8 @@ struct ContentView: View {
                                     composeHistory: store.workspace.composeHistory,
                                     onAddToComposeHistory: { store.addToComposeHistory($0) },
                                     uiState: uiState(for: cell.id),
-                                    notificationState: sessionManager.notificationState(for: cell.id)
+                                    notificationState: sessionManager.notificationState(for: cell.id),
+                                    completionEngine: completionEngine
                                 )
                                 .frame(width: max(cellWidth, 100), height: max(cellHeight, 100))
                                 .overlay {
