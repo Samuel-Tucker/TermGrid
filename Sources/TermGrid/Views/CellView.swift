@@ -22,6 +22,7 @@ struct CellView: View {
     let onAddToComposeHistory: (String) -> Void
     let uiState: CellUIState
     let notificationState: CellNotificationState
+    let completionEngine: CompletionEngine
 
     @State private var isEditingLabel = false
     @State private var labelDraft = ""
@@ -159,6 +160,26 @@ struct CellView: View {
                 focusMonitor = nil
             }
             gitModel.stopPolling()
+        }
+        .onChange(of: completionEngine.predictions) { _, predictions in
+            guard uiState.phantomComposeActive, uiState.ghostEnabled,
+                  !uiState.composeHistoryActive else {
+                uiState.ghostText = ""
+                return
+            }
+            if let best = predictions.first {
+                let (_, partial) = Tokenizer.extractPartial(uiState.phantomComposeText)
+                if !partial.isEmpty, best.text.lowercased().hasPrefix(partial.lowercased()) {
+                    // Show the rest of the word as ghost
+                    uiState.ghostText = String(best.text.dropFirst(partial.count))
+                } else if partial.isEmpty {
+                    uiState.ghostText = best.text
+                } else {
+                    uiState.ghostText = ""
+                }
+            } else {
+                uiState.ghostText = ""
+            }
         }
     }
 
@@ -557,6 +578,7 @@ struct CellView: View {
                                 ),
                                 pendingCharacter: uiState.phantomPendingCharacter,
                                 historyMode: uiState.composeHistoryActive,
+                                ghostText: (uiState.ghostEnabled && !uiState.composeHistoryActive) ? uiState.ghostText : "",
                                 onSend: { text in
                                     // Save to history
                                     onAddToComposeHistory(text)
@@ -607,6 +629,41 @@ struct CellView: View {
                                 onHistoryDismiss: {
                                     uiState.composeHistoryActive = false
                                     uiState.composeHistorySelectedIndex = 0
+                                },
+                                onGhostAccept: {
+                                    // Accept full ghost suggestion
+                                    let ghost = uiState.ghostText
+                                    guard !ghost.isEmpty else { return }
+                                    let (_, partial) = Tokenizer.extractPartial(uiState.phantomComposeText)
+                                    if !partial.isEmpty && ghost.hasPrefix(partial) {
+                                        // Replace partial with full completion
+                                        let suffix = String(ghost.dropFirst(partial.count))
+                                        uiState.phantomComposeText += suffix
+                                    } else {
+                                        uiState.phantomComposeText += (uiState.phantomComposeText.last == " " ? "" : " ") + ghost
+                                    }
+                                    uiState.ghostText = ""
+                                    completionEngine.recordCommand(uiState.phantomComposeText, acceptedSuggestion: true)
+                                },
+                                onGhostAcceptWord: {
+                                    // Accept first word of ghost
+                                    let ghost = uiState.ghostText
+                                    guard !ghost.isEmpty else { return }
+                                    let word = ghost.prefix(while: { !$0.isWhitespace })
+                                    let (_, partial) = Tokenizer.extractPartial(uiState.phantomComposeText)
+                                    if !partial.isEmpty && ghost.hasPrefix(partial) {
+                                        let suffix = String(word.dropFirst(partial.count))
+                                        uiState.phantomComposeText += suffix
+                                    } else {
+                                        uiState.phantomComposeText += (uiState.phantomComposeText.last == " " ? "" : " ") + word
+                                    }
+                                    // Re-request predictions for updated text
+                                    completionEngine.requestPredictions(for: uiState.phantomComposeText)
+                                },
+                                onTextChanged: { newText in
+                                    uiState.ghostText = ""
+                                    guard uiState.ghostEnabled, !uiState.composeHistoryActive else { return }
+                                    completionEngine.requestPredictions(for: newText)
                                 }
                             )
                         }

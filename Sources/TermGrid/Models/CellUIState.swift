@@ -17,6 +17,10 @@ final class CellUIState {
     var phantomPendingCharacter: String? = nil    // first keystroke to inject
     var phantomComposeText: String = ""           // persists across dismiss/reactivate
 
+    // MARK: - Ghost Autocomplete
+    var ghostText: String = ""                   // current ghost suggestion
+    var ghostEnabled: Bool = true                // user pref (toggle via Cmd+Shift+P)
+
     // MARK: - Compose History
     var composeHistoryActive: Bool = false        // history popup visible?
     var composeHistorySelectedIndex: Int = 0      // currently highlighted entry

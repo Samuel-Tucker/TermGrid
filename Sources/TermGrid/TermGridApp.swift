@@ -29,12 +29,14 @@ struct TermGridApp: App {
     @State private var vault = APIKeyVault()
     @State private var docsManager = DocsManager()
     @State private var scrollbackManager = ScrollbackManager()
+    @State private var completionEngine = CompletionEngine()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         Window("TermGrid v4", id: "main") {
             ContentView(store: store, sessionManager: sessionManager, vault: vault,
-                        docsManager: docsManager, scrollbackManager: scrollbackManager)
+                        docsManager: docsManager, scrollbackManager: scrollbackManager,
+                        completionEngine: completionEngine)
                 .frame(minWidth: 600, minHeight: 400)
                 .preferredColorScheme(.dark)
                 .onAppear {
@@ -44,6 +46,9 @@ struct TermGridApp: App {
                     }
                     store.sessionManager = sessionManager
                     startNotificationSubsystem()
+                }
+                .task {
+                    try? await completionEngine.bootstrap()
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .background || newPhase == .inactive {
