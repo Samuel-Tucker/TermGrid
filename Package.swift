@@ -8,14 +8,16 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/gonzalezreal/swift-markdown-ui", from: "2.0.0"),
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.0.0")
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm", from: "1.0.0"),
+        .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0")
     ],
     targets: [
         .executableTarget(
             name: "TermGrid",
             dependencies: [
                 .product(name: "MarkdownUI", package: "swift-markdown-ui"),
-                .product(name: "SwiftTerm", package: "SwiftTerm")
+                .product(name: "SwiftTerm", package: "SwiftTerm"),
+                .product(name: "GRDB", package: "GRDB.swift")
             ],
             path: "Sources/TermGrid",
             resources: [

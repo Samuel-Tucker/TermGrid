@@ -43,8 +43,56 @@ enum Theme {
     static let staged              = Color(hex: "#75BE95")
     static let error               = Color(hex: "#E06C75")
 
+    // MARK: - Phantom Compose Overlay
+    static let phantomCursorColor  = NSColor(hex: "#C4A574")  // amber block cursor
+    static let phantomDivider      = Color(hex: "#C4A574")     // 1px top hairline
+
+    // MARK: - Compose History Popup
+    static let historyRowSelected  = Color(hex: "#2E2E35")     // highlighted row bg
+    static let historyTimestamp    = Color(hex: "#7A756B")     // relative time text
+
     // MARK: - Session Ended Overlay
     static let overlayText         = Color(hex: "#A09A8E")
+
+    // MARK: - Agent Badge Colors
+    static let agentClaude         = Color(hex: "#D4A574")
+    static let agentCodex          = Color(hex: "#75BE95")
+    static let agentGemini         = Color(hex: "#4285F4")
+    static let agentAider          = Color(hex: "#FF6B6B")
+}
+
+// MARK: - AgentType Display Properties
+
+extension AgentType {
+    var displayName: String {
+        switch self {
+        case .claudeCode: return "Claude"
+        case .codex:      return "Codex"
+        case .gemini:     return "Gemini"
+        case .aider:      return "Aider"
+        case .unknown:    return "Agent"
+        }
+    }
+
+    var badgeColor: Color {
+        switch self {
+        case .claudeCode: return Theme.agentClaude
+        case .codex:      return Theme.agentCodex
+        case .gemini:     return Theme.agentGemini
+        case .aider:      return Theme.agentAider
+        case .unknown:    return Theme.headerIcon
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .claudeCode: return "brain"
+        case .codex:      return "chevron.left.forwardslash.chevron.right"
+        case .gemini:     return "sparkles"
+        case .aider:      return "wrench"
+        case .unknown:    return "cpu"
+        }
+    }
 }
 
 // MARK: - Hex Initializers

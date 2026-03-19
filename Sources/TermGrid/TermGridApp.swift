@@ -32,7 +32,7 @@ struct TermGridApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
-        Window("TermGrid", id: "main") {
+        Window("TermGrid v4", id: "main") {
             ContentView(store: store, sessionManager: sessionManager, vault: vault,
                         docsManager: docsManager, scrollbackManager: scrollbackManager)
                 .frame(minWidth: 600, minHeight: 400)

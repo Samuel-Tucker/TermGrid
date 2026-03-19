@@ -158,6 +158,31 @@ final class CommandRegistry {
                 }
             ),
             AppCommand(
+                id: "toggle-phantom-compose",
+                title: "Toggle Phantom Compose",
+                icon: "text.cursor",
+                scope: .cell,
+                action: { ctx in
+                    ctx.cellUIState?.phantomComposeEnabled.toggle()
+                    if !(ctx.cellUIState?.phantomComposeEnabled ?? true) {
+                        ctx.cellUIState?.phantomComposeActive = false
+                    }
+                }
+            ),
+            AppCommand(
+                id: "compose-history",
+                title: "Compose History (^R)",
+                icon: "clock.arrow.circlepath",
+                scope: .cell,
+                isAvailable: { ctx in ctx.cellUIState?.phantomComposeEnabled == true },
+                action: { ctx in
+                    ctx.cellUIState?.composeHistoryActive = true
+                    if !(ctx.cellUIState?.phantomComposeActive ?? false) {
+                        ctx.cellUIState?.phantomComposeActive = true
+                    }
+                }
+            ),
+            AppCommand(
                 id: "quick-terminal",
                 title: "Quick Terminal (⌘⇧F)",
                 icon: "pip",

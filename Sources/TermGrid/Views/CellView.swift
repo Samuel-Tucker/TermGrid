@@ -18,6 +18,8 @@ struct CellView: View {
     let onUpdateExplorerDirectory: (String) -> Void
     let onUpdateExplorerViewMode: (ExplorerViewMode) -> Void
     let onCloseCell: () -> Void
+    let composeHistory: [ComposeHistoryEntry]
+    let onAddToComposeHistory: (String) -> Void
     let uiState: CellUIState
     let notificationState: CellNotificationState
 
@@ -466,7 +468,12 @@ struct CellView: View {
         onUpdateLabel: @escaping (String) -> Void
     ) -> some View {
         VStack(spacing: 0) {
-            TerminalLabelBar(label: label, placeholder: placeholder, onCommit: onUpdateLabel)
+            TerminalLabelBar(
+                label: label,
+                placeholder: placeholder,
+                agentType: session?.detectedAgent,
+                onCommit: onUpdateLabel
+            )
             terminalPane(session: session, onRestart: onRestart)
         }
     }
@@ -475,47 +482,148 @@ struct CellView: View {
     private func terminalPane(session: TerminalSession?, onRestart: @escaping () -> Void) -> some View {
         if let session {
             VStack(spacing: 0) {
-                ZStack {
-                    TerminalContainerView(session: session)
-                        .id(session.sessionID)
+                ZStack(alignment: .bottom) {
+                    ZStack {
+                        TerminalContainerView(session: session)
+                            .id(session.sessionID)
 
-                    if !session.isRunning {
-                        VStack(spacing: 8) {
-                            Text("Session ended")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(Theme.overlayText)
-                            Button("Restart", action: onRestart)
-                                .buttonStyle(.bordered)
-                                .tint(Theme.accent)
+                        if !session.isRunning {
+                            VStack(spacing: 8) {
+                                Text("Session ended")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(Theme.overlayText)
+                                Button("Restart", action: onRestart)
+                                    .buttonStyle(.bordered)
+                                    .tint(Theme.accent)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Theme.cellBackground.opacity(0.85))
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Theme.cellBackground.opacity(0.85))
+
+                        // Agent work shutter
+                        if uiState.shutterEnabled && notificationState.agentBusy {
+                            VStack(spacing: 12) {
+                                Image(systemName: "gearshape.2")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(Theme.accent)
+                                    .symbolEffect(.pulse, isActive: true)
+                                Text(notificationState.agentName.isEmpty
+                                     ? "Agent at work..."
+                                     : "\(notificationState.agentName) at work...")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(Theme.overlayText)
+                                Text("Terminal will reappear when done")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(Theme.composePlaceholder)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Theme.cellBackground.opacity(0.92))
+                            .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        }
+
+                        // Dim overlay when phantom compose is active
+                        if uiState.phantomComposeEnabled && uiState.phantomComposeActive {
+                            Color.black.opacity(0.15)
+                                .allowsHitTesting(false)
+                        }
                     }
 
-                    // Agent work shutter
-                    if uiState.shutterEnabled && notificationState.agentBusy {
-                        VStack(spacing: 12) {
-                            Image(systemName: "gearshape.2")
-                                .font(.system(size: 28))
-                                .foregroundColor(Theme.accent)
-                                .symbolEffect(.pulse, isActive: true)
-                            Text(notificationState.agentName.isEmpty
-                                 ? "Agent at work..."
-                                 : "\(notificationState.agentName) at work...")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(Theme.overlayText)
-                            Text("Terminal will reappear when done")
-                                .font(.system(size: 10))
-                                .foregroundColor(Theme.composePlaceholder)
+                    // Phantom compose overlay — inside the ZStack, pinned to bottom
+                    if uiState.phantomComposeEnabled && uiState.phantomComposeActive {
+                        VStack(spacing: 0) {
+                            // History popup (grows upward above compose)
+                            if uiState.composeHistoryActive {
+                                ComposeHistoryPopup(
+                                    history: composeHistory,
+                                    query: uiState.phantomComposeText,
+                                    selectedIndex: uiState.composeHistorySelectedIndex,
+                                    onSelect: { content in
+                                        uiState.phantomComposeText = content
+                                        uiState.composeHistoryActive = false
+                                        uiState.composeHistorySelectedIndex = 0
+                                    },
+                                    onDismiss: {
+                                        uiState.composeHistoryActive = false
+                                        uiState.composeHistorySelectedIndex = 0
+                                    }
+                                )
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
+
+                            PhantomComposeOverlay(
+                                text: Binding(
+                                    get: { uiState.phantomComposeText },
+                                    set: { uiState.phantomComposeText = $0 }
+                                ),
+                                pendingCharacter: uiState.phantomPendingCharacter,
+                                historyMode: uiState.composeHistoryActive,
+                                onSend: { text in
+                                    // Save to history
+                                    onAddToComposeHistory(text)
+                                    // Send each line with \r
+                                    let lines = text.components(separatedBy: .newlines)
+                                    for line in lines {
+                                        if !line.isEmpty {
+                                            session.send(line + "\r")
+                                        }
+                                    }
+                                    uiState.phantomComposeActive = false
+                                    uiState.phantomPendingCharacter = nil
+                                    uiState.composeHistoryActive = false
+                                    uiState.composeHistorySelectedIndex = 0
+                                    // Return focus to terminal
+                                    returnFocusToTerminal()
+                                },
+                                onDismiss: {
+                                    uiState.phantomComposeActive = false
+                                    uiState.phantomPendingCharacter = nil
+                                    uiState.composeHistoryActive = false
+                                    uiState.composeHistorySelectedIndex = 0
+                                    returnFocusToTerminal()
+                                },
+                                onControlPassthrough: { ctrlChar in
+                                    session.send(ctrlChar)
+                                },
+                                onHistoryTrigger: {
+                                    guard !composeHistory.isEmpty else { return }
+                                    uiState.composeHistoryActive = true
+                                    uiState.composeHistorySelectedIndex = 0
+                                },
+                                onHistoryNavigate: { delta in
+                                    let filtered = filteredHistoryCount()
+                                    guard filtered > 0 else { return }
+                                    let maxIdx = min(filtered, 5) - 1
+                                    uiState.composeHistorySelectedIndex = max(0, min(maxIdx, uiState.composeHistorySelectedIndex + delta))
+                                },
+                                onHistoryConfirm: {
+                                    let entries = filteredHistory()
+                                    let visible = Array(entries.prefix(5))
+                                    if uiState.composeHistorySelectedIndex < visible.count {
+                                        uiState.phantomComposeText = visible[uiState.composeHistorySelectedIndex].content
+                                    }
+                                    uiState.composeHistoryActive = false
+                                    uiState.composeHistorySelectedIndex = 0
+                                },
+                                onHistoryDismiss: {
+                                    uiState.composeHistoryActive = false
+                                    uiState.composeHistorySelectedIndex = 0
+                                }
+                            )
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Theme.cellBackground.opacity(0.92))
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .bottom).combined(with: .opacity)
+                                .animation(.spring(response: 0.25, dampingFraction: 0.8)),
+                            removal: .opacity
+                                .animation(.easeIn(duration: 0.15))
+                        ))
                     }
                 }
 
-                ComposeBox { text in
-                    session.send(text)
+                // Classic ComposeBox — only when phantom is disabled
+                if !uiState.phantomComposeEnabled {
+                    ComposeBox { text in
+                        session.send(text)
+                    }
                 }
             }
         } else {
@@ -542,6 +650,30 @@ struct CellView: View {
         case .attention: return Theme.accent
         case .none: return .clear
         }
+    }
+
+    // MARK: - Phantom Compose Helpers
+
+    private func returnFocusToTerminal() {
+        DispatchQueue.main.async {
+            if let window = NSApp.keyWindow {
+                let container = cellContainer(for: window.firstResponder) ?? window.contentView
+                if let term = findView(ofType: SwiftTerm.LocalProcessTerminalView.self, in: container) {
+                    window.makeFirstResponder(term)
+                }
+            }
+        }
+    }
+
+    private func filteredHistory() -> [ComposeHistoryEntry] {
+        let reversed = composeHistory.reversed()
+        let query = uiState.phantomComposeText
+        if query.isEmpty { return Array(reversed) }
+        return reversed.filter { fuzzyMatch(query: query, in: $0.content) != nil }
+    }
+
+    private func filteredHistoryCount() -> Int {
+        filteredHistory().count
     }
 
     // MARK: - Helpers
@@ -583,6 +715,7 @@ struct CellView: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             onUpdateWorkingDirectory(url.path)
+            autoFillLabelIfEmpty(from: url)
         }
     }
 
@@ -597,7 +730,17 @@ struct CellView: View {
         panel.message = "Choose a directory for the file explorer"
         if panel.runModal() == .OK, let url = panel.url {
             onUpdateExplorerDirectory(url.path)
+            autoFillLabelIfEmpty(from: url)
         }
+    }
+
+    private func autoFillLabelIfEmpty(from url: URL) {
+        let name = url.lastPathComponent
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        guard cell.label.isEmpty,
+              url != home,
+              url.path != "/" else { return }
+        onUpdateLabel(name)
     }
 
     // MARK: - Focus Cycling (Ctrl+Tab)
@@ -624,14 +767,33 @@ struct CellView: View {
         let currentResponder = window.firstResponder
         let container = cellContainer(for: currentResponder) ?? window.contentView
 
+        // If phantom compose is active, dismiss it and return to terminal
+        if uiState.phantomComposeActive {
+            uiState.phantomComposeActive = false
+            uiState.phantomPendingCharacter = nil
+            if let term = findView(ofType: SwiftTerm.LocalProcessTerminalView.self, in: container) {
+                window.makeFirstResponder(term)
+            }
+            return
+        }
+
         let isTerminal = currentResponder is SwiftTerm.TerminalView
             || (currentResponder?.isKind(of: NSClassFromString("SwiftTerm.TerminalView") ?? NSView.self) ?? false)
         let isCompose = currentResponder is ComposeNSTextView
 
         if isTerminal {
-            // Terminal → Compose
-            if let compose = findView(ofType: ComposeNSTextView.self, in: container) {
-                window.makeFirstResponder(compose)
+            // Terminal → Compose (classic mode) or Git/Notes
+            if !uiState.phantomComposeEnabled {
+                if let compose = findView(ofType: ComposeNSTextView.self, in: container) {
+                    window.makeFirstResponder(compose)
+                    return
+                }
+            }
+            // Phantom mode: skip compose, go to git/notes/terminal
+            if uiState.showGit {
+                NotificationCenter.default.post(name: .focusGitPanel, object: cell.id)
+            } else if uiState.showNotes {
+                NotificationCenter.default.post(name: .focusNotesPanel, object: cell.id)
             }
         } else if isCompose {
             // Compose → Git (if visible) → Notes (if visible) → Terminal
