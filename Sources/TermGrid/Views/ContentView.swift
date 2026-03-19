@@ -97,13 +97,17 @@ struct ContentView: View {
                                 .overlay {
                                     if hoveredCellID != nil && hoveredCellID != cell.id {
                                         RoundedRectangle(cornerRadius: 8)
-                                            .fill(Theme.appBackground.opacity(0.5))
+                                            .fill(Theme.appBackground.opacity(0.3))
                                             .allowsHitTesting(false)
                                     }
                                 }
                                 .onHover { hovering in
                                     withAnimation(.easeInOut(duration: 0.15)) {
-                                        hoveredCellID = hovering ? cell.id : nil
+                                        if hovering {
+                                            hoveredCellID = cell.id
+                                        } else if hoveredCellID == cell.id {
+                                            hoveredCellID = nil
+                                        }
                                     }
                                 }
                                 .onAppear {
@@ -289,8 +293,10 @@ struct ContentView: View {
                 scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
                     guard event.modifierFlags.contains(.command) else { return event }
                     guard abs(event.deltaY) > 0.5 else { return event }
+                    // Ignore trackpad momentum events (only respond to active finger contact)
+                    if event.momentumPhase != [] { return event }
                     let now = Date()
-                    guard now.timeIntervalSince(lastScrollCycleTime) > 0.2 else { return nil }
+                    guard now.timeIntervalSince(lastScrollCycleTime) > 0.15 else { return nil }
                     lastScrollCycleTime = now
                     cycleCell(forward: event.deltaY < 0)
                     return nil
