@@ -17,6 +17,9 @@ struct ContentView: View {
     @State private var commandRegistry = CommandRegistry()
     @State private var showFloatingPane = false
     @State private var isFloatHovered = false
+    @State private var hoveredCellID: UUID? = nil
+    @State private var scrollMonitor: Any? = nil
+    @State private var lastScrollCycleTime: Date = .distantPast
 
     private var rows: Int { store.workspace.gridLayout.rows }
     private var columns: Int { store.workspace.gridLayout.columns }
@@ -91,6 +94,18 @@ struct ContentView: View {
                                     notificationState: sessionManager.notificationState(for: cell.id)
                                 )
                                 .frame(width: max(cellWidth, 100), height: max(cellHeight, 100))
+                                .overlay {
+                                    if hoveredCellID != nil && hoveredCellID != cell.id {
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Theme.appBackground.opacity(0.5))
+                                            .allowsHitTesting(false)
+                                    }
+                                }
+                                .onHover { hovering in
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        hoveredCellID = hovering ? cell.id : nil
+                                    }
+                                }
                                 .onAppear {
                                     if sessionManager.session(for: cell.id) == nil {
                                         // Restore split if persisted
@@ -270,8 +285,22 @@ struct ContentView: View {
                     }
                     return event
                 }
+                // Cmd+Scroll to cycle terminals
+                scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
+                    guard event.modifierFlags.contains(.command) else { return event }
+                    guard abs(event.deltaY) > 0.5 else { return event }
+                    let now = Date()
+                    guard now.timeIntervalSince(lastScrollCycleTime) > 0.2 else { return nil }
+                    lastScrollCycleTime = now
+                    cycleCell(forward: event.deltaY < 0)
+                    return nil
+                }
             }
             .onDisappear {
+                if let monitor = scrollMonitor {
+                    NSEvent.removeMonitor(monitor)
+                    scrollMonitor = nil
+                }
                 if let monitor = focusMonitor {
                     NSEvent.removeMonitor(monitor)
                     focusMonitor = nil
@@ -348,6 +377,28 @@ struct ContentView: View {
                 }
             }
             view = v.superview
+        }
+    }
+
+    private func cycleCell(forward: Bool) {
+        let cells = store.workspace.visibleCells
+        guard !cells.isEmpty else { return }
+
+        let currentIndex = cells.firstIndex(where: { $0.id == focusedCellID }) ?? -1
+        let nextIndex: Int
+        if forward {
+            nextIndex = (currentIndex + 1) % cells.count
+        } else {
+            nextIndex = (currentIndex - 1 + cells.count) % cells.count
+        }
+
+        let targetCell = cells[nextIndex]
+        focusedCellID = targetCell.id
+        sessionManager.notificationState(for: targetCell.id).clear()
+
+        if let session = sessionManager.session(for: targetCell.id),
+           let window = NSApp.keyWindow {
+            window.makeFirstResponder(session.terminalView)
         }
     }
 
