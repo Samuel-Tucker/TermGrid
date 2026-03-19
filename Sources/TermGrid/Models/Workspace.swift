@@ -82,11 +82,14 @@ struct Workspace: Codable {
     var schemaVersion: Int
     var gridLayout: GridPreset
     var cells: [Cell]
+    var composeHistory: [ComposeHistoryEntry]
 
-    init(schemaVersion: Int = 1, gridLayout: GridPreset = .two_by_two, cells: [Cell]? = nil) {
+    init(schemaVersion: Int = 1, gridLayout: GridPreset = .two_by_two, cells: [Cell]? = nil,
+         composeHistory: [ComposeHistoryEntry] = []) {
         self.schemaVersion = schemaVersion
         self.gridLayout = gridLayout
         self.cells = cells ?? (0..<gridLayout.cellCount).map { _ in Cell() }
+        self.composeHistory = composeHistory
     }
 
     init(from decoder: Decoder) throws {
@@ -99,6 +102,7 @@ struct Workspace: Codable {
             loadedCells.append(contentsOf: (0..<(needed - loadedCells.count)).map { _ in Cell() })
         }
         cells = loadedCells
+        composeHistory = (try? container.decode([ComposeHistoryEntry].self, forKey: .composeHistory)) ?? []
     }
 
     static var defaultWorkspace: Workspace {

@@ -56,8 +56,13 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let notifState = sessionManager.notificationState(for: signal.cellID)
         switch signal.eventType {
         case .started:
-            let name = signal.agentType == .claudeCode ? "Claude" : "Codex"
-            notifState.agentStarted(name: name)
+            notifState.agentStarted(name: signal.agentType.displayName)
+            // Set detected agent on the session for badge display
+            let session: TerminalSession? = switch signal.sessionType {
+            case .primary: sessionManager.session(for: signal.cellID)
+            case .split: sessionManager.splitSession(for: signal.cellID)
+            }
+            session?.detectedAgent = signal.agentType
             return // don't post a macOS notification for "started"
         case .complete:
             notifState.agentFinished()

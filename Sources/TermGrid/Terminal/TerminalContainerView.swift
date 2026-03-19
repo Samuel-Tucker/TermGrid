@@ -28,6 +28,7 @@ struct TerminalContainerView: NSViewRepresentable {
         func processTerminated(source: TerminalView, exitCode: Int32?) {
             Task { @MainActor in
                 session.isRunning = false
+                session.detectedAgent = nil
             }
         }
 

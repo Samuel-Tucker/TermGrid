@@ -1,15 +1,18 @@
 import Foundation
 import SwiftTerm
+import Observation
 
 @MainActor
+@Observable
 final class TerminalSession {
     let cellID: UUID
     let sessionID: UUID
     let sessionType: SessionType
     let terminalView: LoggingTerminalView
     var isRunning: Bool = true
-    var onNotification: ((PatternMatch) -> Void)? = nil
-    private var processStarted = false
+    var detectedAgent: AgentType? = nil
+    @ObservationIgnored var onNotification: ((PatternMatch) -> Void)? = nil
+    @ObservationIgnored private var processStarted = false
 
     private let shell: String
     private let environment: [String]
@@ -40,6 +43,12 @@ final class TerminalSession {
         terminalView.onPatternMatch = { [weak self] match in
             Task { @MainActor in
                 self?.onNotification?(match)
+            }
+        }
+
+        terminalView.onAgentDetected = { [weak self] agent in
+            Task { @MainActor in
+                self?.detectedAgent = agent
             }
         }
 
@@ -74,6 +83,7 @@ final class TerminalSession {
 
     func send(_ text: String) {
         guard isRunning else { return }
+        terminalView.resetScrollLock()
         terminalView.send(txt: text)
     }
 
@@ -81,6 +91,7 @@ final class TerminalSession {
         if isRunning {
             terminalView.terminate()
             isRunning = false
+            detectedAgent = nil
         }
     }
 }

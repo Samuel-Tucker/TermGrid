@@ -51,3 +51,57 @@ struct OutputPatternMatcher {
         )
     }
 }
+
+/// Scans the first ~20 lines of terminal output for agent startup banners.
+/// Once an agent is detected (or 20 lines pass), scanning stops.
+struct AgentDetector {
+    private var lineBuffer: [UInt8] = []
+    private var lineCount = 0
+    private(set) var detected: AgentType? = nil
+
+    private static let patterns: [(pattern: String, agent: AgentType)] = [
+        ("╭.* Claude",    .claudeCode),
+        ("Claude Code",   .claudeCode),
+        ("OpenAI Codex",  .codex),
+        ("^codex>",       .codex),
+        ("Gemini Code",   .gemini),
+        ("✦ Gemini",      .gemini),
+        ("aider v\\d",    .aider),
+        ("Aider v\\d",    .aider),
+    ]
+
+    /// Stop scanning after detection or 20 lines or 64KB of buffered data.
+    private static let maxBufferSize = 65_536
+
+    var isFinished: Bool { detected != nil || lineCount >= 20 }
+
+    mutating func processChunk(_ bytes: ArraySlice<UInt8>) -> AgentType? {
+        guard !isFinished else { return nil }
+
+        for byte in bytes {
+            if byte == 0x0A {
+                lineCount += 1
+                if let line = String(bytes: lineBuffer, encoding: .utf8) {
+                    let clean = OutputPatternMatcher.stripAnsi(line)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    for (pattern, agent) in Self.patterns {
+                        if clean.range(of: pattern, options: .regularExpression) != nil {
+                            detected = agent
+                            return agent
+                        }
+                    }
+                }
+                lineBuffer.removeAll()
+                if lineCount >= 20 { return nil }
+            } else {
+                lineBuffer.append(byte)
+                // Cap buffer to prevent unbounded growth on binary data
+                if lineBuffer.count > Self.maxBufferSize {
+                    lineCount = 20 // force finish
+                    return nil
+                }
+            }
+        }
+        return nil
+    }
+}

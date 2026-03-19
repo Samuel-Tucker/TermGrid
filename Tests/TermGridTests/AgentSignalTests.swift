@@ -75,6 +75,22 @@ struct AgentSignalTests {
         #expect(signal == nil)
     }
 
+    @Test func socketPayloadWithUnknownAgentTypeFallsBackToUnknown() throws {
+        let json = """
+        {"cellID":"550e8400-e29b-41d4-a716-446655440000","sessionType":"primary","agentType":"cursor","eventType":"complete","message":"done"}
+        """.data(using: .utf8)!
+        let payload = try JSONDecoder().decode(SocketPayload.self, from: json)
+        let signal = AgentSignal(from: payload)
+        #expect(signal != nil)
+        #expect(signal?.agentType == .unknown)
+    }
+
+    @Test func agentTypeNewCases() {
+        #expect(AgentType.gemini.rawValue == "gemini")
+        #expect(AgentType.aider.rawValue == "aider")
+        #expect(AgentType.unknown.rawValue == "unknown")
+    }
+
     @Test func socketPayloadWithInvalidSessionTypeReturnsNil() throws {
         let json = """
         {"cellID":"550e8400-e29b-41d4-a716-446655440000","sessionType":"tertiary","agentType":"claudeCode","eventType":"complete","message":"hello"}

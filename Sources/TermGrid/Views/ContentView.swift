@@ -90,6 +90,8 @@ struct ContentView: View {
                                         sessionManager.killSession(for: cell.id)
                                         store.removeCell(id: cell.id)
                                     },
+                                    composeHistory: store.workspace.composeHistory,
+                                    onAddToComposeHistory: { store.addToComposeHistory($0) },
                                     uiState: uiState(for: cell.id),
                                     notificationState: sessionManager.notificationState(for: cell.id)
                                 )
@@ -283,6 +285,30 @@ struct ContentView: View {
                         }
                         return nil
                     }
+                    // Phantom compose activation: intercept printable keys when a terminal is focused
+                    if event.type == .keyDown {
+                        if let cellID = identifyFocusedCell(),
+                           let uiState = cellUIStates[cellID],
+                           uiState.phantomComposeEnabled && !uiState.phantomComposeActive {
+                            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+                            if !flags.contains(.command) && !flags.contains(.control) {
+                                let nonPrintable: Set<UInt16> = [
+                                    48, 51, 53, 117,          // Tab, Delete, Escape, Fwd Delete
+                                    123, 124, 125, 126,       // Arrow keys
+                                    122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111, // F1-F12
+                                    115, 119, 116, 121,       // Home, End, PageUp, PageDown
+                                    36, 76,                   // Enter, Numpad Enter
+                                ]
+                                if !nonPrintable.contains(event.keyCode),
+                                   let chars = event.characters, !chars.isEmpty {
+                                    uiState.phantomPendingCharacter = chars
+                                    uiState.phantomComposeActive = true
+                                    return nil
+                                }
+                            }
+                        }
+                    }
+
                     // Track focused cell on any event
                     DispatchQueue.main.async {
                         updateFocusedCell()
@@ -358,6 +384,23 @@ struct ContentView: View {
             }
         }
         .animation(.easeOut(duration: 0.15), value: showCommandPalette)
+    }
+
+    /// Synchronously identify which cell's terminal is the current first responder.
+    private func identifyFocusedCell() -> UUID? {
+        guard let window = NSApp.keyWindow,
+              let responder = window.firstResponder as? NSView else { return nil }
+        for cell in store.workspace.visibleCells {
+            if let session = sessionManager.session(for: cell.id),
+               session.terminalView === responder {
+                return cell.id
+            }
+            if let splitSession = sessionManager.splitSession(for: cell.id),
+               splitSession.terminalView === responder {
+                return cell.id
+            }
+        }
+        return nil
     }
 
     private func updateFocusedCell() {

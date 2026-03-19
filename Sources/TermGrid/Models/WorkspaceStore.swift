@@ -98,6 +98,22 @@ final class WorkspaceStore {
         workspace.gridLayout = preset
     }
 
+    // MARK: - Compose History
+
+    func addToComposeHistory(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        // Deduplicate: skip if the most recent entry has the same content
+        if workspace.composeHistory.last?.content == trimmed { return }
+        let entry = ComposeHistoryEntry(id: UUID(), content: trimmed, timestamp: Date())
+        workspace.composeHistory.append(entry)
+        // Ring buffer: cap at 100 entries
+        if workspace.composeHistory.count > 100 {
+            workspace.composeHistory.removeFirst(workspace.composeHistory.count - 100)
+        }
+        scheduleSave()
+    }
+
     // MARK: - Persistence
 
     func saveScrollback() {

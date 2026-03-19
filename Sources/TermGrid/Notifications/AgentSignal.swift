@@ -19,10 +19,10 @@ struct AgentSignal {
     init?(from payload: SocketPayload) {
         guard let cellID = UUID(uuidString: payload.cellID),
               let sessionType = SessionType(rawValue: payload.sessionType),
-              let agentType = AgentType(rawValue: payload.agentType),
               let eventType = EventType(rawValue: payload.eventType) else {
             return nil
         }
+        let agentType = AgentType(rawValue: payload.agentType) ?? .unknown
         self.cellID = cellID
         self.sessionType = sessionType
         self.agentType = agentType
@@ -37,7 +37,7 @@ enum SessionType: String, Codable {
 }
 
 enum AgentType: String, Codable {
-    case claudeCode, codex
+    case claudeCode, codex, gemini, aider, unknown
 }
 
 enum EventType: String, Codable {
