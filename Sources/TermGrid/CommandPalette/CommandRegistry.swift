@@ -153,6 +153,18 @@ final class CommandRegistry {
                 }
             ),
             AppCommand(
+                id: "toggle-skills",
+                title: "Toggle Skills",
+                icon: "book",
+                scope: .global,
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteToggleSkills,
+                        object: nil
+                    )
+                }
+            ),
+            AppCommand(
                 id: "toggle-api-locker",
                 title: "Toggle API Locker",
                 icon: "lock.fill",
@@ -201,6 +213,123 @@ final class CommandRegistry {
                     )
                 }
             ),
+            AppCommand(
+                id: "new-workspace",
+                title: "New Workspace (⌘T)",
+                icon: "plus.rectangle",
+                scope: .global,
+                isAvailable: { ctx in
+                    (ctx.collection?.workspaces.count ?? 0) < WorkspaceCollection.maxWorkspaces
+                },
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteNewWorkspace,
+                        object: nil
+                    )
+                }
+            ),
+            AppCommand(
+                id: "close-workspace",
+                title: "Close Workspace (⌘⇧W)",
+                icon: "xmark.rectangle",
+                scope: .global,
+                isAvailable: { ctx in (ctx.collection?.workspaces.count ?? 0) > 1 },
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteCloseWorkspace,
+                        object: nil
+                    )
+                }
+            ),
+            AppCommand(
+                id: "rename-workspace",
+                title: "Rename Workspace",
+                icon: "pencil",
+                scope: .global,
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteRenameWorkspace,
+                        object: nil
+                    )
+                }
+            ),
+            AppCommand(
+                id: "next-workspace",
+                title: "Next Workspace (⌘⇧])",
+                icon: "arrow.right.square",
+                scope: .global,
+                isAvailable: { ctx in (ctx.collection?.workspaces.count ?? 0) > 1 },
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteNextWorkspace,
+                        object: nil
+                    )
+                }
+            ),
+            AppCommand(
+                id: "prev-workspace",
+                title: "Previous Workspace (⌘⇧[)",
+                icon: "arrow.left.square",
+                scope: .global,
+                isAvailable: { ctx in (ctx.collection?.workspaces.count ?? 0) > 1 },
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPalettePrevWorkspace,
+                        object: nil
+                    )
+                }
+            ),
+            AppCommand(
+                id: "swap-panel-left",
+                title: "Swap Panel Left",
+                icon: "arrow.left.arrow.right",
+                scope: .cell,
+                isAvailable: { ctx in (ctx.store.workspace.visibleCells.count) > 1 },
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteSwapDirection,
+                        object: "left"
+                    )
+                }
+            ),
+            AppCommand(
+                id: "swap-panel-right",
+                title: "Swap Panel Right",
+                icon: "arrow.left.arrow.right",
+                scope: .cell,
+                isAvailable: { ctx in (ctx.store.workspace.visibleCells.count) > 1 },
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteSwapDirection,
+                        object: "right"
+                    )
+                }
+            ),
+            AppCommand(
+                id: "add-panel",
+                title: "Add Panel (⌘⇧N)",
+                icon: "plus.rectangle",
+                scope: .global,
+                isAvailable: { ctx in ctx.store.canAddPanel },
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteAddPanel,
+                        object: nil
+                    )
+                }
+            ),
+            AppCommand(
+                id: "popout-reader",
+                title: "Popout Terminal Output (⌘⇧E)",
+                icon: "arrow.up.left.and.arrow.down.right",
+                scope: .cell,
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPalettePopoutReader,
+                        object: nil
+                    )
+                }
+            ),
         ]
     }
 }
@@ -215,4 +344,13 @@ extension Notification.Name {
     static let commandPaletteSwitchGrid = Notification.Name("TermGrid.commandPalette.switchGrid")
     static let commandPaletteToggleAPILocker = Notification.Name("TermGrid.commandPalette.toggleAPILocker")
     static let toggleFloatingPane = Notification.Name("TermGrid.toggleFloatingPane")
+    static let commandPaletteNewWorkspace = Notification.Name("TermGrid.commandPalette.newWorkspace")
+    static let commandPaletteCloseWorkspace = Notification.Name("TermGrid.commandPalette.closeWorkspace")
+    static let commandPaletteRenameWorkspace = Notification.Name("TermGrid.commandPalette.renameWorkspace")
+    static let commandPaletteNextWorkspace = Notification.Name("TermGrid.commandPalette.nextWorkspace")
+    static let commandPalettePrevWorkspace = Notification.Name("TermGrid.commandPalette.prevWorkspace")
+    static let commandPaletteToggleSkills = Notification.Name("TermGrid.commandPalette.toggleSkills")
+    static let commandPaletteSwapDirection = Notification.Name("TermGrid.commandPalette.swapDirection")
+    static let commandPaletteAddPanel = Notification.Name("TermGrid.commandPalette.addPanel")
+    static let commandPalettePopoutReader = Notification.Name("TermGrid.commandPalette.popoutReader")
 }

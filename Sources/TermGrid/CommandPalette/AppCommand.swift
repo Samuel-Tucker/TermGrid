@@ -10,6 +10,7 @@ struct CommandContext {
     let cellUIState: CellUIState?
     let store: WorkspaceStore
     let sessionManager: TerminalSessionManager
+    var collection: WorkspaceCollection? = nil
 }
 
 struct AppCommand: Identifiable {

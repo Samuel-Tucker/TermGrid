@@ -5,11 +5,12 @@ import Observation
 @Observable
 final class WorkspaceStore {
     var workspace: Workspace
-    private let persistence: PersistenceManager
+    private let persistence: PersistenceManager?
     let scrollbackManager: ScrollbackManager
     private var saveTask: Task<Void, Never>?
     var sessionManager: TerminalSessionManager?
     var cellUIStates: [UUID: CellUIState]?
+    var onSave: (() -> Void)?
 
     init(persistence: PersistenceManager = PersistenceManager(),
          scrollbackManager: ScrollbackManager? = nil) {
@@ -20,6 +21,13 @@ final class WorkspaceStore {
         } else {
             self.workspace = .defaultWorkspace
         }
+    }
+
+    /// Collection-managed init: persistence is delegated to WorkspaceCollection.
+    init(workspace: Workspace, scrollbackManager: ScrollbackManager) {
+        self.persistence = nil
+        self.scrollbackManager = scrollbackManager
+        self.workspace = workspace
     }
 
     // MARK: - Mutation Methods
@@ -82,6 +90,33 @@ final class WorkspaceStore {
         scrollbackManager.cleanup(cellID: id)
         compactGrid()
         scheduleSave()
+    }
+
+    func swapCells(_ idA: UUID, _ idB: UUID) {
+        guard idA != idB,
+              let indexA = workspace.cells.firstIndex(where: { $0.id == idA }),
+              let indexB = workspace.cells.firstIndex(where: { $0.id == idB }) else { return }
+        workspace.cells.swapAt(indexA, indexB)
+        scheduleSave()
+    }
+
+    var canAddPanel: Bool {
+        workspace.cells.count < GridPreset.three_by_three.cellCount
+    }
+
+    @discardableResult
+    func addPanel() -> UUID? {
+        guard canAddPanel else { return nil }
+        let newCell = Cell()
+
+        if workspace.cells.count >= workspace.gridLayout.cellCount {
+            guard let next = workspace.gridLayout.nextPresetForAddPanel else { return nil }
+            workspace.gridLayout = next
+        }
+
+        workspace.cells.append(newCell)
+        scheduleSave()
+        return newCell.id
     }
 
     private func compactGrid() {
@@ -156,10 +191,14 @@ final class WorkspaceStore {
         saveTask?.cancel()
         saveTask = nil
         saveScrollback()
-        do {
-            try persistence.save(workspace)
-        } catch {
-            print("[TermGrid] Save failed: \(error)")
+        if let onSave {
+            onSave()
+        } else if let persistence {
+            do {
+                try persistence.save(workspace)
+            } catch {
+                print("[TermGrid] Save failed: \(error)")
+            }
         }
     }
 
@@ -168,10 +207,14 @@ final class WorkspaceStore {
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled, let self else { return }
-            do {
-                try self.persistence.save(self.workspace)
-            } catch {
-                print("[TermGrid] Save failed: \(error)")
+            if let onSave = self.onSave {
+                onSave()
+            } else if let persistence = self.persistence {
+                do {
+                    try persistence.save(self.workspace)
+                } catch {
+                    print("[TermGrid] Save failed: \(error)")
+                }
             }
         }
     }

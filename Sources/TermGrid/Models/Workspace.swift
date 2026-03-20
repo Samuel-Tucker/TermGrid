@@ -26,6 +26,20 @@ enum GridPreset: String, Codable, CaseIterable {
     }
 
     var cellCount: Int { columns * rows }
+
+    var nextPresetForAddPanel: GridPreset? {
+        switch self {
+        case .one_by_one:     return .two_by_one
+        case .two_by_one:     return .two_by_two
+        case .one_by_two:     return .two_by_two
+        case .two_by_two:     return .three_by_two
+        case .three_by_two:   return .three_by_three
+        case .two_by_three:   return .three_by_three
+        case .three_by_three: return nil
+        }
+    }
+
+    var isMaxPreset: Bool { self == .three_by_three }
 }
 
 enum ExplorerViewMode: String, Codable {
@@ -78,14 +92,19 @@ struct Cell: Codable, Identifiable {
     }
 }
 
-struct Workspace: Codable {
+struct Workspace: Codable, Identifiable {
+    var id: UUID
+    var name: String
     var schemaVersion: Int
     var gridLayout: GridPreset
     var cells: [Cell]
     var composeHistory: [ComposeHistoryEntry]
 
-    init(schemaVersion: Int = 1, gridLayout: GridPreset = .two_by_two, cells: [Cell]? = nil,
+    init(id: UUID = UUID(), name: String = "Default", schemaVersion: Int = 1,
+         gridLayout: GridPreset = .two_by_two, cells: [Cell]? = nil,
          composeHistory: [ComposeHistoryEntry] = []) {
+        self.id = id
+        self.name = name
         self.schemaVersion = schemaVersion
         self.gridLayout = gridLayout
         self.cells = cells ?? (0..<gridLayout.cellCount).map { _ in Cell() }
@@ -94,6 +113,8 @@ struct Workspace: Codable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(UUID.self, forKey: .id)) ?? UUID()
+        name = (try? container.decode(String.self, forKey: .name)) ?? "Default"
         schemaVersion = (try? container.decode(Int.self, forKey: .schemaVersion)) ?? 1
         gridLayout = (try? container.decode(GridPreset.self, forKey: .gridLayout)) ?? .two_by_two
         var loadedCells = try container.decode([Cell].self, forKey: .cells)

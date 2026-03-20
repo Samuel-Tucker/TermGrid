@@ -62,7 +62,7 @@ struct APIKeyCard: View {
                         .foregroundColor(showCopied ? .green : Theme.headerIcon)
                 }
                 .buttonStyle(.plain)
-                .help("Copy key")
+                .tooltip("Copy key")
 
                 // Reveal toggle
                 Button {
@@ -79,7 +79,7 @@ struct APIKeyCard: View {
                         .foregroundColor(Theme.headerIcon)
                 }
                 .buttonStyle(.plain)
-                .help(isRevealed ? "Hide key" : "Reveal key")
+                .tooltip(isRevealed ? "Hide key" : "Reveal key")
 
                 // Delete button
                 Button {
@@ -90,7 +90,7 @@ struct APIKeyCard: View {
                         .foregroundColor(Theme.headerIcon)
                 }
                 .buttonStyle(.plain)
-                .help("Delete key")
+                .tooltip("Delete key")
             }
             .padding(.trailing, 10)
         }

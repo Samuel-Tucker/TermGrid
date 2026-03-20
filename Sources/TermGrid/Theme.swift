@@ -54,6 +54,11 @@ enum Theme {
     // MARK: - Session Ended Overlay
     static let overlayText         = Color(hex: "#A09A8E")
 
+    // MARK: - Workspace Tabs
+    static let tabActive           = Color(hex: "#252528")
+    static let tabInactive         = Color(hex: "#222225")
+    static let tabCloseButton      = Color(hex: "#7A756B")
+
     // MARK: - Agent Badge Colors
     static let agentClaude         = Color(hex: "#D4A574")
     static let agentCodex          = Color(hex: "#75BE95")

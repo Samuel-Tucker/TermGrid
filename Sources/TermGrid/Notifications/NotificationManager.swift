@@ -4,15 +4,15 @@ import UserNotifications
 @MainActor
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private let sessionManager: TerminalSessionManager
-    private let store: WorkspaceStore
+    private let collection: WorkspaceCollection
 
     static let categoryIdentifier = "AGENT_MESSAGE"
     static let replyActionIdentifier = "REPLY_ACTION"
     static let dismissActionIdentifier = "DISMISS_ACTION"
 
-    init(sessionManager: TerminalSessionManager, store: WorkspaceStore) {
+    init(sessionManager: TerminalSessionManager, collection: WorkspaceCollection) {
         self.sessionManager = sessionManager
-        self.store = store
+        self.collection = collection
         super.init()
     }
 
@@ -74,7 +74,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         let content = UNMutableNotificationContent()
 
-        if let cell = store.workspace.cells.first(where: { $0.id == signal.cellID }) {
+        let allCells = collection.workspaces.flatMap(\.cells)
+        if let cell = allCells.first(where: { $0.id == signal.cellID }) {
             content.title = cell.label.isEmpty ? "TermGrid" : cell.label
             let termLabel = signal.sessionType == .primary ? cell.terminalLabel : cell.splitTerminalLabel
             if !termLabel.isEmpty {

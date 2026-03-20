@@ -23,10 +23,14 @@ struct CellView: View {
     let uiState: CellUIState
     let notificationState: CellNotificationState
     let completionEngine: CompletionEngine
+    var showDragHandle: Bool = false
+    var onDragChanged: (CGSize) -> Void = { _ in }
+    var onDragEnded: () -> Void = {}
 
     @State private var isEditingLabel = false
     @State private var labelDraft = ""
     @State private var hoveredHeaderButton: String? = nil
+    @State private var isDragHandleHovered = false
     @State private var showCloseConfirmation = false
     @State private var focusMonitor: Any? = nil
     @State private var gitModel = GitStatusModel()
@@ -188,6 +192,29 @@ struct CellView: View {
     @ViewBuilder
     private var headerView: some View {
         HStack {
+            // Drag handle with glass morphism hover
+            if showDragHandle {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(isDragHandleHovered ? Theme.accent : Theme.headerIcon)
+                    .frame(width: 24, height: 24)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5)
+                            .fill(.ultraThinMaterial)
+                            .opacity(isDragHandleHovered ? 1 : 0)
+                    )
+                    .scaleEffect(isDragHandleHovered ? 1.35 : 1.0)
+                    .animation(.easeOut(duration: 0.15), value: isDragHandleHovered)
+                    .contentShape(Rectangle())
+                    .onHover { isDragHandleHovered = $0 }
+                    .gesture(
+                        DragGesture(minimumDistance: 8)
+                            .onChanged { value in onDragChanged(value.translation) }
+                            .onEnded { _ in onDragEnded() }
+                    )
+                    .tooltip("Drag to reorder")
+            }
+
             // Notification dot
             if notificationState.severity != nil {
                 Circle()
@@ -324,24 +351,12 @@ struct CellView: View {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 12))
                     .foregroundColor(Theme.accent)
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .scaleEffect(hoveredHeaderButton == "close" ? 1.35 : 1.0)
-            .overlay(alignment: .top) {
-                Text("Close terminal")
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundColor(Theme.headerText)
-                    .fixedSize()
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Theme.cellBackground)
-                            .shadow(color: .black.opacity(0.25), radius: 4, y: -2)
-                    )
-                    .offset(y: hoveredHeaderButton == "close" ? -24 : -16)
-                    .opacity(hoveredHeaderButton == "close" ? 1 : 0)
-            }
+            .tooltip("Close terminal")
             .onHover { hovering in
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                     hoveredHeaderButton = hovering ? "close" : nil
@@ -372,26 +387,14 @@ struct CellView: View {
             Image(systemName: systemName)
                 .font(.system(size: 12))
                 .foregroundColor(iconColor)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
         .scaleEffect(scale)
         .blur(radius: blurRadius)
         .zIndex(isHovered ? 1 : 0)
-        .overlay(alignment: .top) {
-            Text(label)
-                .font(.system(size: 9, weight: .medium, design: .rounded))
-                .foregroundColor(Theme.headerText)
-                .fixedSize()
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Theme.cellBackground)
-                        .shadow(color: .black.opacity(0.25), radius: 4, y: -2)
-                )
-                .offset(y: isHovered ? -24 : -16)
-                .opacity(isHovered ? 1 : 0)
-        }
+        .tooltip(label)
         .onHover { hovering in
             withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
                 hoveredHeaderButton = hovering ? id : nil

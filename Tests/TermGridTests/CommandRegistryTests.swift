@@ -8,7 +8,7 @@ struct CommandRegistryTests {
 
     @Test func registryContainsAllCommands() {
         let registry = CommandRegistry()
-        #expect(registry.commands.count >= 9)
+        #expect(registry.commands.count >= 12)
     }
 
     @Test func filterBySearchEmpty() {
@@ -37,11 +37,17 @@ struct CommandRegistryTests {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try! FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
+        let pm = PersistenceManager(directory: dir)
+        let collection = WorkspaceCollection(
+            workspaces: [Workspace(), Workspace(name: "Second")],
+            persistence: pm
+        )
         let context = CommandContext(
             focusedCellID: nil,
             cellUIState: nil,
-            store: WorkspaceStore(persistence: PersistenceManager(directory: dir)),
-            sessionManager: TerminalSessionManager()
+            store: collection.activeStore,
+            sessionManager: TerminalSessionManager(),
+            collection: collection
         )
         for cmd in globals {
             #expect(cmd.isAvailable(context))

@@ -61,12 +61,16 @@ final class TerminalSession {
         guard !processStarted else { return }
         processStarted = true
         isRunning = true
+        // Validate working directory exists, fallback to home
+        let fm = FileManager.default
+        let dir = fm.fileExists(atPath: workingDirectory) ? workingDirectory
+            : fm.homeDirectoryForCurrentUser.path
         terminalView.startProcess(
             executable: shell,
             args: ["-l"],
             environment: environment,
             execName: nil,
-            currentDirectory: workingDirectory
+            currentDirectory: dir
         )
     }
 

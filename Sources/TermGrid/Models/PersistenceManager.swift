@@ -1,8 +1,16 @@
 import Foundation
 
+/// On-disk format for workspace collection (schema version 2).
+struct WorkspaceCollectionData: Codable {
+    var schemaVersion: Int = 2
+    var activeWorkspaceIndex: Int
+    var workspaces: [Workspace]
+}
+
 final class PersistenceManager {
-    private let directory: URL
+    let directory: URL
     private let fileName = "workspace.json"
+    private let collectionFileName = "workspaces.json"
 
     private var fileURL: URL {
         directory.appendingPathComponent(fileName)
@@ -10,6 +18,14 @@ final class PersistenceManager {
 
     private var corruptURL: URL {
         directory.appendingPathComponent("\(fileName).corrupt")
+    }
+
+    private var collectionFileURL: URL {
+        directory.appendingPathComponent(collectionFileName)
+    }
+
+    private var collectionCorruptURL: URL {
+        directory.appendingPathComponent("\(collectionFileName).corrupt")
     }
 
     /// Production initializer: uses Application Support/TermGrid/
@@ -25,6 +41,8 @@ final class PersistenceManager {
     init(directory: URL) {
         self.directory = directory
     }
+
+    // MARK: - Single Workspace (legacy)
 
     func load() throws -> Workspace? {
         let fm = FileManager.default
@@ -50,5 +68,33 @@ final class PersistenceManager {
         }
         let data = try JSONEncoder().encode(workspace)
         try data.write(to: fileURL, options: .atomic)
+    }
+
+    // MARK: - Collection (schema v2)
+
+    func loadCollection() throws -> WorkspaceCollectionData? {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: collectionFileURL.path) else { return nil }
+
+        let data = try Data(contentsOf: collectionFileURL)
+        do {
+            return try JSONDecoder().decode(WorkspaceCollectionData.self, from: data)
+        } catch {
+            print("[TermGrid] Warning: workspaces.json is corrupted — renaming to .corrupt")
+            if fm.fileExists(atPath: collectionCorruptURL.path) {
+                try? fm.removeItem(at: collectionCorruptURL)
+            }
+            try? fm.moveItem(at: collectionFileURL, to: collectionCorruptURL)
+            return nil
+        }
+    }
+
+    func saveCollection(_ collection: WorkspaceCollectionData) throws {
+        let fm = FileManager.default
+        if !fm.fileExists(atPath: directory.path) {
+            try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let data = try JSONEncoder().encode(collection)
+        try data.write(to: collectionFileURL, options: .atomic)
     }
 }

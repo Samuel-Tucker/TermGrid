@@ -76,6 +76,56 @@ struct WorkspaceCodableTests {
     }
 }
 
+@Suite("Workspace Identity Tests")
+struct WorkspaceIdentityTests {
+    @Test func defaultIdAndName() {
+        let ws = Workspace()
+        #expect(!ws.id.uuidString.isEmpty)
+        #expect(ws.name == "Default")
+    }
+
+    @Test func customNamePreserved() {
+        let ws = Workspace(name: "My Project")
+        #expect(ws.name == "My Project")
+    }
+
+    @Test func roundTripWithIdAndName() throws {
+        let ws = Workspace(name: "Test Project", gridLayout: .three_by_two)
+        let data = try TestHelpers.encodeWorkspace(ws)
+        let decoded = try TestHelpers.decodeWorkspace(from: data)
+        #expect(decoded.id == ws.id)
+        #expect(decoded.name == "Test Project")
+    }
+
+    @Test func legacyDecodeWithoutIdAndName() throws {
+        let decoded = try TestHelpers.decodeWorkspace(fromJSON: """
+        {"schemaVersion":1,"gridLayout":"2x2","cells":[]}
+        """)
+        #expect(!decoded.id.uuidString.isEmpty)
+        #expect(decoded.name == "Default")
+    }
+}
+
+@Suite("GridPreset Add Panel Tests")
+struct GridPresetAddPanelTests {
+    @Test func nextPresetForAddPanel() {
+        #expect(GridPreset.one_by_one.nextPresetForAddPanel == .two_by_one)
+        #expect(GridPreset.two_by_one.nextPresetForAddPanel == .two_by_two)
+        #expect(GridPreset.one_by_two.nextPresetForAddPanel == .two_by_two)
+        #expect(GridPreset.two_by_two.nextPresetForAddPanel == .three_by_two)
+        #expect(GridPreset.three_by_two.nextPresetForAddPanel == .three_by_three)
+        #expect(GridPreset.two_by_three.nextPresetForAddPanel == .three_by_three)
+        #expect(GridPreset.three_by_three.nextPresetForAddPanel == nil)
+    }
+
+    @Test func isMaxPreset() {
+        #expect(GridPreset.three_by_three.isMaxPreset == true)
+        #expect(GridPreset.one_by_one.isMaxPreset == false)
+        #expect(GridPreset.two_by_two.isMaxPreset == false)
+        #expect(GridPreset.three_by_two.isMaxPreset == false)
+    }
+}
+
 @Suite("Cell Codable Tests")
 struct CellCodableTests {
     @Test func defaultWorkingDirectoryIsHome() {

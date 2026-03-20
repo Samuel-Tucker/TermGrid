@@ -23,20 +23,21 @@ private final class NotificationSubsystem {
 @main
 struct TermGridApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var store = WorkspaceStore()
+    @State private var collection = WorkspaceCollection()
     @State private var sessionManager = TerminalSessionManager()
     @State private var notificationSubsystem = NotificationSubsystem()
     @State private var vault = APIKeyVault()
     @State private var docsManager = DocsManager()
-    @State private var scrollbackManager = ScrollbackManager()
     @State private var completionEngine = CompletionEngine()
+    @State private var skillsManager = SkillsManager()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         Window("TermGrid v4", id: "main") {
-            ContentView(store: store, sessionManager: sessionManager, vault: vault,
-                        docsManager: docsManager, scrollbackManager: scrollbackManager,
-                        completionEngine: completionEngine)
+            ContentView(collection: collection, sessionManager: sessionManager, vault: vault,
+                        docsManager: docsManager,
+                        completionEngine: completionEngine,
+                        skillsManager: skillsManager)
                 .frame(minWidth: 600, minHeight: 400)
                 .preferredColorScheme(.dark)
                 .onAppear {
@@ -44,7 +45,7 @@ struct TermGridApp: App {
                     vault.onKeyRemoved = { keyID in
                         docsManager.removeDocsForKey(keyID)
                     }
-                    store.sessionManager = sessionManager
+                    collection.activeStore.sessionManager = sessionManager
                     startNotificationSubsystem()
                 }
                 .task {
@@ -52,11 +53,11 @@ struct TermGridApp: App {
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .background || newPhase == .inactive {
-                        store.flush()
+                        collection.flush()
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-                    store.flush()
+                    collection.flush()
                     vault.lock()
                     sessionManager.killAll()
                     notificationSubsystem.server?.stop()
@@ -84,7 +85,7 @@ struct TermGridApp: App {
         HookInstaller.setupClaudeCodeHooks()
         HookInstaller.setupCodexHooks()
 
-        let manager = NotificationManager(sessionManager: sessionManager, store: store)
+        let manager = NotificationManager(sessionManager: sessionManager, collection: collection)
         manager.setup()
         notificationSubsystem.manager = manager
 
