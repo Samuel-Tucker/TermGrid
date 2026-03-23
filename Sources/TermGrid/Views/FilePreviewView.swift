@@ -25,7 +25,14 @@ struct FilePreviewView: View {
             previewContent
         }
         .background(Theme.cellBackground)
-        .onAppear { loadFile() }
+        .onAppear {
+            loadFile()
+            // Auto-enter edit mode for new empty files
+            if content.isEmpty && !isImage && !isBinary {
+                editDraft = ""
+                isEditing = true
+            }
+        }
     }
 
     // MARK: - Header

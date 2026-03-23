@@ -2,14 +2,22 @@
 import Foundation
 import Observation
 
+enum CellBodyMode {
+    case terminal, explorer, projectNotes
+}
+
 @MainActor
 @Observable
 final class CellUIState {
-    var showNotes: Bool = true
-    var showExplorer: Bool = false
+    var scratchPadVisible: Bool = true
+    var bodyMode: CellBodyMode = .terminal
     var showGit: Bool = false
     /// Agent work shutter — dims terminal when agent is busy (opt-in)
     var shutterEnabled: Bool = false
+
+    // MARK: - Backward-Compat Computed Properties
+    var showNotes: Bool { scratchPadVisible }
+    var showExplorer: Bool { bodyMode == .explorer }
 
     // MARK: - Phantom Compose
     var phantomComposeEnabled: Bool = true       // user pref (toggle via Cmd+Shift+P)

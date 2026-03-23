@@ -6,6 +6,7 @@ struct NotesView: View {
     let cellID: UUID
     let notes: String
     let onUpdate: (String) -> Void
+    var onSendToTerminal: ((String) -> Void)? = nil
 
     @State private var isEditing = false
     @State private var draft = ""
@@ -47,6 +48,12 @@ struct NotesView: View {
                                 .markdownTextStyle {
                                     FontSize(12)
                                     ForegroundColor(Theme.notesText)
+                                }
+                                .markdownBlockStyle(\.codeBlock) { config in
+                                    RunnableCodeBlock(
+                                        configuration: config,
+                                        onSendToTerminal: onSendToTerminal
+                                    )
                                 }
                         }
                     }

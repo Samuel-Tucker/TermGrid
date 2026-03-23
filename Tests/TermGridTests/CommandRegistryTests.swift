@@ -8,7 +8,7 @@ struct CommandRegistryTests {
 
     @Test func registryContainsAllCommands() {
         let registry = CommandRegistry()
-        #expect(registry.commands.count >= 12)
+        #expect(registry.commands.count >= 13)
     }
 
     @Test func filterBySearchEmpty() {

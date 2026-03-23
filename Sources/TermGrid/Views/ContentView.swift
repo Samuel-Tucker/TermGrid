@@ -38,8 +38,12 @@ struct ContentView: View {
     private var rows: Int { store.workspace.gridLayout.rows }
     private var columns: Int { store.workspace.gridLayout.columns }
 
+    // Read-only lookup — NEVER mutate @State during body evaluation.
+    // States are seeded in the onChange handler below.
+    private static let fallbackUIState = CellUIState()
+
     private func uiState(for id: UUID) -> CellUIState {
-        cellUIStates[id] ?? CellUIState()
+        cellUIStates[id] ?? Self.fallbackUIState
     }
 
     private var gridContent: some View {
@@ -165,6 +169,10 @@ struct ContentView: View {
             sessionManager.vaultKeys = newKeys
         }
         .onAppear {
+            // Seed CellUIState for all visible cells BEFORE first render
+            for cell in store.workspace.visibleCells where cellUIStates[cell.id] == nil {
+                cellUIStates[cell.id] = CellUIState()
+            }
             sessionManager.vaultKeys = vault.decryptedKeys
             store.cellUIStates = cellUIStates
             // Clean up orphaned scrollback files (check all workspaces)
@@ -721,7 +729,7 @@ struct ContentView: View {
 
         // Restore explorer state
         if cell.showExplorer {
-            uiState(for: cell.id).showExplorer = true
+            uiState(for: cell.id).bodyMode = .explorer
         }
     }
 

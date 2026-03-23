@@ -179,7 +179,7 @@ struct FileExplorerView: View {
                     .foregroundColor(model.showHiddenFiles ? Theme.accent : Theme.headerIcon)
             }
             .buttonStyle(.borderless)
-            .help(model.showHiddenFiles ? "Hide hidden files" : "Show hidden files")
+            .tooltip(model.showHiddenFiles ? "Hide hidden files" : "Show hidden files")
 
             // View mode toggle
             Button {
@@ -190,7 +190,7 @@ struct FileExplorerView: View {
                     .foregroundColor(Theme.headerIcon)
             }
             .buttonStyle(.borderless)
-            .help(viewMode == .grid ? "Switch to list view" : "Switch to grid view")
+            .tooltip(viewMode == .grid ? "Switch to list view" : "Switch to grid view")
 
             // New item menu
             Menu {
@@ -369,12 +369,23 @@ struct FileExplorerView: View {
 
     private func commitNewItem() {
         guard !newItemName.isEmpty else { return }
+        let wasFile = !newItemIsFolder
+        let name = newItemName
+        var success = false
+
         if newItemIsFolder {
-            _ = model.createFolder(named: newItemName)
+            success = model.createFolder(named: name)
         } else {
-            _ = model.createFile(named: newItemName)
+            success = model.createFile(named: name)
         }
         isCreatingNewItem = false
+        newItemName = ""
+
+        // After creating a file, open it for editing immediately
+        if success && wasFile {
+            let path = (model.currentPath as NSString).appendingPathComponent(name)
+            previewingFile = path
+        }
     }
 
     private func formattedSize(_ bytes: Int64) -> String {

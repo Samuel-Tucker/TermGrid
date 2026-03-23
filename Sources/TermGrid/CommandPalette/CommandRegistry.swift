@@ -30,18 +30,31 @@ final class CommandRegistry {
     private static func buildCommands() -> [AppCommand] {
         [
             AppCommand(
-                id: "toggle-notes",
-                title: "Toggle Notes",
+                id: "toggle-scratch-pad",
+                title: "Toggle Scratch Pad",
                 icon: "note.text",
                 scope: .cell,
-                action: { ctx in ctx.cellUIState?.showNotes.toggle() }
+                action: { ctx in ctx.cellUIState?.scratchPadVisible.toggle() }
             ),
             AppCommand(
                 id: "toggle-explorer",
                 title: "Toggle File Explorer",
                 icon: "doc.text.magnifyingglass",
                 scope: .cell,
-                action: { ctx in ctx.cellUIState?.showExplorer.toggle() }
+                action: { ctx in
+                    guard let ui = ctx.cellUIState else { return }
+                    ui.bodyMode = ui.bodyMode == .explorer ? .terminal : .explorer
+                }
+            ),
+            AppCommand(
+                id: "toggle-project-notes",
+                title: "Toggle Project Notes",
+                icon: "folder.badge.questionmark",
+                scope: .cell,
+                action: { ctx in
+                    guard let ui = ctx.cellUIState else { return }
+                    ui.bodyMode = ui.bodyMode == .projectNotes ? .terminal : .projectNotes
+                }
             ),
             AppCommand(
                 id: "toggle-agent-shutter",
@@ -106,7 +119,7 @@ final class CommandRegistry {
                 title: "New File",
                 icon: "doc.badge.plus",
                 scope: .cell,
-                isAvailable: { ctx in ctx.cellUIState?.showExplorer == true },
+                isAvailable: { ctx in ctx.cellUIState?.bodyMode == .explorer },
                 action: { ctx in
                     NotificationCenter.default.post(
                         name: .commandPaletteNewFile,
@@ -119,7 +132,7 @@ final class CommandRegistry {
                 title: "New Folder",
                 icon: "folder.badge.plus",
                 scope: .cell,
-                isAvailable: { ctx in ctx.cellUIState?.showExplorer == true },
+                isAvailable: { ctx in ctx.cellUIState?.bodyMode == .explorer },
                 action: { ctx in
                     NotificationCenter.default.post(
                         name: .commandPaletteNewFolder,
@@ -132,7 +145,7 @@ final class CommandRegistry {
                 title: "Show/Hide Hidden Files",
                 icon: "eye",
                 scope: .cell,
-                isAvailable: { ctx in ctx.cellUIState?.showExplorer == true },
+                isAvailable: { ctx in ctx.cellUIState?.bodyMode == .explorer },
                 action: { ctx in
                     NotificationCenter.default.post(
                         name: .commandPaletteToggleHidden,

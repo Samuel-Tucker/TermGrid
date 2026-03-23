@@ -43,17 +43,19 @@ final class TooltipPanel {
         let y = screenOrigin.minY - panelSize.height - 6
         panel.setFrameOrigin(NSPoint(x: x, y: y))
 
-        // Fade in
-        panel.alphaValue = 0
-        panel.orderFront(nil)
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.15
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            panel.animator().alphaValue = 1
-        }
-
         self.panel = panel
         self.hostingView = hosting
+
+        // Defer orderFront to avoid re-entrant constraint updates (crash fix)
+        DispatchQueue.main.async {
+            panel.alphaValue = 0
+            panel.orderFront(nil)
+            NSAnimationContext.runAnimationGroup { ctx in
+                ctx.duration = 0.15
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                panel.animator().alphaValue = 1
+            }
+        }
 
         // Auto-dismiss after 4s
         dismissTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { [weak self] _ in
@@ -65,14 +67,17 @@ final class TooltipPanel {
         dismissTimer?.invalidate()
         dismissTimer = nil
         guard let panel else { return }
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = 0.1
-            panel.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
-            panel.orderOut(nil)
-            self?.panel = nil
-            self?.hostingView = nil
-        })
+        self.panel = nil
+        self.hostingView = nil
+        // Defer orderOut to avoid re-entrant constraint updates (crash fix)
+        DispatchQueue.main.async {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.1
+                panel.animator().alphaValue = 0
+            }, completionHandler: {
+                panel.orderOut(nil)
+            })
+        }
     }
 }
 

@@ -37,7 +37,7 @@ struct CellView: View {
     @State private var previewingFile: String? = nil
     @FocusState private var labelFieldFocused: Bool
 
-    private static let headerButtonIDs = ["splitH", "splitV", "explorer", "git", "notes"]
+    private static let headerButtonIDs = ["splitH", "splitV", "folder", "explorer", "git", "notes"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -114,9 +114,9 @@ struct CellView: View {
                             let dir = cell.explorerDirectory.isEmpty ? cell.workingDirectory : cell.explorerDirectory
                             let fullPath = path.hasPrefix("/") ? path : (dir as NSString).appendingPathComponent(path)
                             previewingFile = fullPath
-                            if !uiState.showExplorer {
+                            if uiState.bodyMode != .explorer {
                                 withAnimation(.easeInOut(duration: 0.4)) {
-                                    uiState.showExplorer = true
+                                    uiState.bodyMode = .explorer
                                 }
                             }
                         }
@@ -125,10 +125,17 @@ struct CellView: View {
                     Divider()
                 }
                 cellBody
-                if uiState.showNotes {
+                if uiState.scratchPadVisible {
                     Divider()
-                    NotesView(cellID: cell.id, notes: cell.notes, onUpdate: onUpdateNotes)
-                        .frame(width: 160)
+                    NotesView(
+                        cellID: cell.id,
+                        notes: cell.notes,
+                        onUpdate: onUpdateNotes,
+                        onSendToTerminal: { text in
+                            session?.send(text)
+                        }
+                    )
+                    .frame(width: 160)
                 }
             }
             .clipped()
@@ -267,41 +274,17 @@ struct CellView: View {
                 action: { onToggleSplit(.vertical) }
             )
 
-            // Repo pill badge — doubles as directory Menu
+            // Repo pill badge — doubles as directory Menu (dock-style hover)
             if let badgePath = effectiveExplorerPath, badgePath != FileManager.default.homeDirectoryForCurrentUser.path {
-                Menu {
-                    Button("Set Terminal Directory") { pickWorkingDirectory() }
-                    Button("Set Explorer Directory") { pickExplorerDirectory() }
-                    Divider()
-                    Button(uiState.showExplorer ? "Show Terminal" : "Show Explorer") {
-                        withAnimation(.easeInOut(duration: 0.4)) { uiState.showExplorer.toggle() }
-                    }
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "folder.fill")
-                            .font(.system(size: 8))
-                        Text(shortenPath(badgePath))
-                            .font(.system(size: 10, design: .monospaced))
-                    }
-                    .foregroundColor(Theme.accent)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Capsule().fill(Theme.cellBorder))
-                }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
+                folderPillMenu(path: badgePath)
             } else {
-                // No directory set yet — show small folder icon as Menu
-                Menu {
+                // No directory set — plain folder icon with dock hover
+                headerMenuButton(id: "folder", systemName: "folder", label: "Set directory") {
+                    Button("Set Both Directories") { pickBothDirectories() }
+                    Divider()
                     Button("Set Terminal Directory") { pickWorkingDirectory() }
                     Button("Set Explorer Directory") { pickExplorerDirectory() }
-                } label: {
-                    Image(systemName: "folder")
-                        .font(.system(size: 10))
-                        .foregroundColor(Theme.headerIcon)
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
             }
 
             Spacer()
@@ -309,10 +292,12 @@ struct CellView: View {
             // Header icon buttons with Dock-style hover magnification
             headerIconButton(
                 id: "explorer",
-                systemName: uiState.showExplorer ? "terminal" : "doc.text.magnifyingglass",
-                label: uiState.showExplorer ? "Show terminal" : "Show explorer",
+                systemName: uiState.bodyMode == .explorer ? "terminal" : "doc.text.magnifyingglass",
+                label: uiState.bodyMode == .explorer ? "Show terminal" : "Show explorer",
                 action: {
-                    withAnimation(.easeInOut(duration: 0.4)) { uiState.showExplorer.toggle() }
+                    withAnimation(.easeInOut(duration: 0.4)) {
+                        uiState.bodyMode = uiState.bodyMode == .explorer ? .terminal : .explorer
+                    }
                 }
             )
 
@@ -332,12 +317,17 @@ struct CellView: View {
                 }
             )
 
-            headerIconButton(
-                id: "notes",
-                systemName: uiState.showNotes ? "note.text" : "note.text.badge.plus",
-                label: uiState.showNotes ? "Hide notes" : "Show notes",
-                action: { uiState.showNotes.toggle() }
-            )
+            headerMenuButton(id: "notes", systemName: notesIcon, label: "Notes") {
+                Button("Scratch Pad") { uiState.scratchPadVisible.toggle() }
+                Button(uiState.bodyMode == .projectNotes ? "Close Project Notes" : "Project Notes") {
+                    uiState.bodyMode = uiState.bodyMode == .projectNotes ? .terminal : .projectNotes
+                }
+                Divider()
+                Button("Hide All") {
+                    uiState.scratchPadVisible = false
+                    if uiState.bodyMode == .projectNotes { uiState.bodyMode = .terminal }
+                }
+            }
 
             // Gap separator before destructive action
             Spacer().frame(width: 8)
@@ -403,6 +393,51 @@ struct CellView: View {
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: hoveredHeaderButton)
     }
 
+    private var notesIcon: String {
+        if uiState.bodyMode == .projectNotes || uiState.scratchPadVisible {
+            return "note.text"
+        }
+        return "note.text.badge.plus"
+    }
+
+    @ViewBuilder
+    private func headerMenuButton<Content: View>(
+        id: String,
+        systemName: String,
+        label: String,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        let isHovered = hoveredHeaderButton == id
+        let isAnyHovered = hoveredHeaderButton != nil
+        let neighbor = isNeighbor(id, to: hoveredHeaderButton)
+
+        let scale: CGFloat = isHovered ? 1.35 : (neighbor ? 1.12 : 1.0)
+        let blurRadius: CGFloat = isHovered ? 0 : (isAnyHovered ? (neighbor ? 0.5 : 1.5) : 0)
+        let iconColor = isHovered ? Theme.accent : Theme.headerIcon
+
+        Menu {
+            content()
+        } label: {
+            Image(systemName: systemName)
+                .font(.system(size: 12))
+                .foregroundColor(iconColor)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .scaleEffect(scale)
+        .blur(radius: blurRadius)
+        .zIndex(isHovered ? 1 : 0)
+        .tooltip(label)
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                hoveredHeaderButton = hovering ? id : nil
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: hoveredHeaderButton)
+    }
+
     private func isNeighbor(_ id: String, to targetID: String?) -> Bool {
         guard let targetID,
               let targetIdx = Self.headerButtonIDs.firstIndex(of: targetID),
@@ -410,34 +445,84 @@ struct CellView: View {
         return abs(targetIdx - currentIdx) == 1
     }
 
+    // MARK: - Folder Pill Menu (dock-style hover, icon scales, text stays crisp)
+
+    @ViewBuilder
+    private func folderPillMenu(path: String) -> some View {
+        let isHovered = hoveredHeaderButton == "folder"
+        let isAnyHovered = hoveredHeaderButton != nil
+        let neighbor = isNeighbor("folder", to: hoveredHeaderButton)
+        let iconScale: CGFloat = isHovered ? 1.35 : (neighbor ? 1.12 : 1.0)
+        let blurRadius: CGFloat = isHovered ? 0 : (isAnyHovered ? (neighbor ? 0.5 : 1.5) : 0)
+
+        Menu {
+            Button("Set Both Directories") { pickBothDirectories() }
+            Divider()
+            Button("Set Terminal Directory") { pickWorkingDirectory() }
+            Button("Set Explorer Directory") { pickExplorerDirectory() }
+            Divider()
+            Button(uiState.bodyMode == .explorer ? "Show Terminal" : "Show Explorer") {
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    uiState.bodyMode = uiState.bodyMode == .explorer ? .terminal : .explorer
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "folder.fill")
+                    .font(.system(size: 8))
+                    .scaleEffect(iconScale)
+                Text(shortenPath(path))
+                    .font(.system(size: 10, design: .monospaced))
+            }
+            .foregroundColor(isHovered ? Theme.accent : Theme.accent.opacity(0.8))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 2)
+            .background(Capsule().fill(Theme.cellBorder))
+            .blur(radius: blurRadius)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .zIndex(isHovered ? 1 : 0)
+        .tooltip("Directory")
+        .onHover { hovering in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
+                hoveredHeaderButton = hovering ? "folder" : nil
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: hoveredHeaderButton)
+    }
+
     // MARK: - Cell Body (page flip between terminal and explorer)
+
+    private var effectiveDir: String {
+        let path = cell.explorerDirectory.isEmpty ? cell.workingDirectory : cell.explorerDirectory
+        return path
+    }
 
     @ViewBuilder
     private var cellBody: some View {
-        ZStack {
+        switch uiState.bodyMode {
+        case .terminal:
             terminalBody
-                .opacity(uiState.showExplorer ? 0 : 1)
-                .rotation3DEffect(
-                    .degrees(uiState.showExplorer ? -90 : 0),
-                    axis: (x: 0, y: 1, z: 0),
-                    perspective: 0.5
-                )
-
+                .transition(.opacity)
+        case .explorer:
             FileExplorerView(
                 cellID: cell.id,
-                rootPath: cell.explorerDirectory.isEmpty ? cell.workingDirectory : cell.explorerDirectory,
+                rootPath: effectiveDir,
                 viewMode: cell.explorerViewMode,
                 previewingFile: $previewingFile,
                 onViewModeChange: onUpdateExplorerViewMode
             )
-            .opacity(uiState.showExplorer ? 1 : 0)
-            .rotation3DEffect(
-                .degrees(uiState.showExplorer ? 0 : 90),
-                axis: (x: 0, y: 1, z: 0),
-                perspective: 0.5
+            .transition(.opacity)
+        case .projectNotes:
+            ProjectNotesView(
+                cellID: cell.id,
+                effectiveDirectory: effectiveDir,
+                onChooseDirectory: { pickBothDirectories() },
+                onSendToTerminal: { text in session?.send(text) }
             )
+            .transition(.opacity)
         }
-        .animation(.easeInOut(duration: 0.4), value: uiState.showExplorer)
     }
 
     // MARK: - Terminal Body
@@ -779,6 +864,21 @@ struct CellView: View {
         }
     }
 
+    private func pickBothDirectories() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: cell.workingDirectory)
+        panel.prompt = "Select"
+        panel.message = "Choose a directory for both terminal and explorer"
+        if panel.runModal() == .OK, let url = panel.url {
+            onUpdateWorkingDirectory(url.path)
+            onUpdateExplorerDirectory(url.path)
+            autoFillLabelIfEmpty(from: url)
+        }
+    }
+
     private func pickExplorerDirectory() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -852,14 +952,14 @@ struct CellView: View {
             // Phantom mode: skip compose, go to git/notes/terminal
             if uiState.showGit {
                 NotificationCenter.default.post(name: .focusGitPanel, object: cell.id)
-            } else if uiState.showNotes {
+            } else if uiState.scratchPadVisible {
                 NotificationCenter.default.post(name: .focusNotesPanel, object: cell.id)
             }
         } else if isCompose {
             // Compose → Git (if visible) → Notes (if visible) → Terminal
             if uiState.showGit {
                 NotificationCenter.default.post(name: .focusGitPanel, object: cell.id)
-            } else if uiState.showNotes {
+            } else if uiState.scratchPadVisible {
                 NotificationCenter.default.post(name: .focusNotesPanel, object: cell.id)
             } else {
                 if let term = findView(ofType: SwiftTerm.LocalProcessTerminalView.self, in: container) {
@@ -868,7 +968,7 @@ struct CellView: View {
             }
         } else {
             // In git or notes panel → try next, then terminal
-            if uiState.showNotes {
+            if uiState.scratchPadVisible {
                 NotificationCenter.default.post(name: .focusNotesPanel, object: cell.id)
             } else {
                 if let term = findView(ofType: SwiftTerm.LocalProcessTerminalView.self, in: container) {

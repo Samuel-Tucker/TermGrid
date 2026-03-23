@@ -165,7 +165,7 @@ final class WorkspaceStore {
 
                 // Sync showExplorer from CellUIState
                 if let uiState = cellUIStates?[cell.id] {
-                    workspace.cells[idx].showExplorer = uiState.showExplorer
+                    workspace.cells[idx].showExplorer = uiState.bodyMode == .explorer
                 }
             }
 
