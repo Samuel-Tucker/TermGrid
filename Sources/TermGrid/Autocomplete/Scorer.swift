@@ -20,8 +20,8 @@ enum Scorer {
         min(1.0, emaAlpha * 1.0 + (1.0 - emaAlpha) * current)
     }
 
-    /// EMA decay toward 0.0 on reject.
+    /// EMA decay on reject — floor at 0.3 to allow recovery (W1 fix).
     static func penalizeConfidence(_ current: Double) -> Double {
-        max(0.0, (1.0 - emaAlpha) * current)
+        max(0.3, (1.0 - emaAlpha) * current)
     }
 }

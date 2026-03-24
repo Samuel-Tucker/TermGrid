@@ -183,13 +183,17 @@ struct CellView: View {
                 if !partial.isEmpty, best.text.lowercased().hasPrefix(partial.lowercased()) {
                     // Show the rest of the word as ghost
                     uiState.ghostText = String(best.text.dropFirst(partial.count))
+                    uiState.ghostFullToken = best.text
                 } else if partial.isEmpty {
                     uiState.ghostText = best.text
+                    uiState.ghostFullToken = best.text
                 } else {
                     uiState.ghostText = ""
+                    uiState.ghostFullToken = ""
                 }
             } else {
                 uiState.ghostText = ""
+                uiState.ghostFullToken = ""
             }
         }
     }
@@ -670,6 +674,9 @@ struct CellView: View {
                                 onSend: { text in
                                     // Save to history
                                     onAddToComposeHistory(text)
+                                    // Learn from sent command
+                                    completionEngine.recordCommand(text, acceptedSuggestion: uiState.ghostAccepted)
+                                    uiState.ghostAccepted = false
                                     // Send each line with \r
                                     let lines = text.components(separatedBy: .newlines)
                                     for line in lines {
@@ -679,6 +686,8 @@ struct CellView: View {
                                     }
                                     uiState.phantomComposeActive = false
                                     uiState.phantomPendingCharacter = nil
+                                    uiState.ghostText = ""
+                                    uiState.ghostFullToken = ""
                                     uiState.composeHistoryActive = false
                                     uiState.composeHistorySelectedIndex = 0
                                     // Return focus to terminal
@@ -687,6 +696,9 @@ struct CellView: View {
                                 onDismiss: {
                                     uiState.phantomComposeActive = false
                                     uiState.phantomPendingCharacter = nil
+                                    uiState.ghostText = ""
+                                    uiState.ghostFullToken = ""
+                                    uiState.ghostAccepted = false
                                     uiState.composeHistoryActive = false
                                     uiState.composeHistorySelectedIndex = 0
                                     returnFocusToTerminal()
@@ -721,17 +733,22 @@ struct CellView: View {
                                 onGhostAccept: {
                                     // Accept full ghost suggestion
                                     let ghost = uiState.ghostText
+                                    let fullToken = uiState.ghostFullToken
                                     guard !ghost.isEmpty else { return }
-                                    let (_, partial) = Tokenizer.extractPartial(uiState.phantomComposeText)
+                                    let inputBefore = uiState.phantomComposeText
+                                    let (_, partial) = Tokenizer.extractPartial(inputBefore)
                                     if !partial.isEmpty && ghost.hasPrefix(partial) {
-                                        // Replace partial with full completion
                                         let suffix = String(ghost.dropFirst(partial.count))
                                         uiState.phantomComposeText += suffix
                                     } else {
-                                        uiState.phantomComposeText += (uiState.phantomComposeText.last == " " ? "" : " ") + ghost
+                                        uiState.phantomComposeText += (inputBefore.last == " " ? "" : " ") + ghost
                                     }
+                                    // Boost confidence using the FULL token (C4 fix)
+                                    completionEngine.recordAcceptance(input: inputBefore, acceptedSuggestion: fullToken)
                                     uiState.ghostText = ""
-                                    completionEngine.recordCommand(uiState.phantomComposeText, acceptedSuggestion: true)
+                                    uiState.ghostFullToken = ""
+                                    uiState.ghostAccepted = true
+                                    // Don't recordCommand here — happens on send (C3 fix)
                                 },
                                 onGhostAcceptWord: {
                                     // Accept first word of ghost
@@ -749,7 +766,22 @@ struct CellView: View {
                                     completionEngine.requestPredictions(for: uiState.phantomComposeText)
                                 },
                                 onTextChanged: { newText in
+                                    let previousGhost = uiState.ghostText
+                                    let previousFullToken = uiState.ghostFullToken
                                     uiState.ghostText = ""
+                                    uiState.ghostFullToken = ""
+                                    // Only penalize if user DIVERGED from the ghost (C1 fix)
+                                    // If the typed char continues the ghost prefix, it's not a rejection
+                                    if !previousGhost.isEmpty && !previousFullToken.isEmpty {
+                                        let (_, newPartial) = Tokenizer.extractPartial(newText)
+                                        let isContin = !newPartial.isEmpty
+                                            && previousFullToken.lowercased().hasPrefix(newPartial.lowercased())
+                                        if !isContin {
+                                            completionEngine.recordRejection(
+                                                input: newText, rejectedSuggestion: previousFullToken
+                                            )
+                                        }
+                                    }
                                     guard uiState.ghostEnabled, !uiState.composeHistoryActive else { return }
                                     completionEngine.requestPredictions(for: newText)
                                 }

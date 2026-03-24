@@ -26,7 +26,9 @@ final class CellUIState {
     var phantomComposeText: String = ""           // persists across dismiss/reactivate
 
     // MARK: - Ghost Autocomplete
-    var ghostText: String = ""                   // current ghost suggestion
+    var ghostText: String = ""                   // displayed ghost suffix (after cursor)
+    var ghostFullToken: String = ""              // full predicted token (for feedback accuracy)
+    var ghostAccepted: Bool = false              // was ghost accepted before send? (for learning)
     var ghostEnabled: Bool = true                // user pref (toggle via Cmd+Shift+P)
 
     // MARK: - Compose History

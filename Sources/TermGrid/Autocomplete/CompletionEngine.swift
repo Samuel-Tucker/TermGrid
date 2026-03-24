@@ -105,6 +105,51 @@ final class CompletionEngine {
         }
     }
 
+    /// Record a rejection — user typed over the ghost suggestion.
+    func recordRejection(input: String, rejectedSuggestion: String) {
+        guard let trigramEngine else { return }
+
+        let tokens = Tokenizer.tokenize(input)
+        guard tokens.count >= 2 else { return }
+
+        let w1 = tokens.count >= 3 ? tokens[tokens.count - 3] : "<START>"
+        let w2 = tokens[tokens.count - 2]
+        let w3 = rejectedSuggestion.split(separator: " ").first.map(String.init) ?? rejectedSuggestion
+
+        // Find current confidence and penalize
+        let preds = trigramEngine.predict(w1: w1, w2: w2, limit: 20)
+        if let match = preds.first(where: { $0.token == w3 }) {
+            let newConf = Scorer.penalizeConfidence(match.confidence)
+            try? trigramEngine.updateConfidence(w1: w1, w2: w2, w3: w3, confidence: newConf)
+        }
+    }
+
+    /// Boost confidence for an accepted ghost suggestion.
+    func recordAcceptance(input: String, acceptedSuggestion: String) {
+        guard let trigramEngine else { return }
+
+        let tokens = Tokenizer.tokenize(input)
+        let w1: String
+        let w2: String
+        if tokens.count >= 2 {
+            w1 = tokens[tokens.count - 2]
+            w2 = tokens[tokens.count - 1]
+        } else if tokens.count == 1 {
+            w1 = "<START>"
+            w2 = tokens[0]
+        } else {
+            return
+        }
+
+        let w3 = acceptedSuggestion.split(separator: " ").first.map(String.init) ?? acceptedSuggestion
+
+        let preds = trigramEngine.predict(w1: w1, w2: w2, limit: 20)
+        if let match = preds.first(where: { $0.token == w3 }) {
+            let newConf = Scorer.boostConfidence(match.confidence)
+            try? trigramEngine.updateConfidence(w1: w1, w2: w2, w3: w3, confidence: newConf)
+        }
+    }
+
     // MARK: - Private
 
     private func computePredictions(for input: String, domain: String) {
