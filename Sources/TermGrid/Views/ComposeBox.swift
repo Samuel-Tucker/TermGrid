@@ -1,6 +1,35 @@
 import SwiftUI
 import AppKit
 
+enum ComposeSlashSelectionAction: Equatable {
+    case accept
+    case navigate(Int)
+    case dismiss
+    case none
+}
+
+func composeSlashSelectionAction(
+    keyCode: UInt16,
+    modifiers: NSEvent.ModifierFlags
+) -> ComposeSlashSelectionAction {
+    let flags = modifiers.intersection(.deviceIndependentFlagsMask)
+
+    switch keyCode {
+    case 48 where !flags.contains(.control):
+        return .accept
+    case 36 where !flags.contains(.shift):
+        return .accept
+    case 126:
+        return .navigate(-1)
+    case 125:
+        return .navigate(1)
+    case 53:
+        return .dismiss
+    default:
+        return .none
+    }
+}
+
 struct ComposeBox: View {
     let agentType: AgentType?
     let workingDirectory: String?
@@ -355,17 +384,18 @@ final class ComposeNSTextView: NSTextView {
             return handlePhantomKeyEquivalent(with: event)
         }
         if slashCommandMode {
-            if event.keyCode == 48 && !event.modifierFlags.contains(.control) {
+            switch composeSlashSelectionAction(keyCode: event.keyCode, modifiers: event.modifierFlags) {
+            case .accept:
                 onSlashAccept?()
                 return true
-            }
-            if event.keyCode == 126 {
-                onSlashNavigate?(-1)
+            case let .navigate(delta):
+                onSlashNavigate?(delta)
                 return true
-            }
-            if event.keyCode == 125 {
-                onSlashNavigate?(1)
+            case .dismiss:
+                onSlashDismiss?()
                 return true
+            case .none:
+                break
             }
         }
         if event.keyCode == 36 && event.modifierFlags.contains(.shift) {
@@ -387,21 +417,18 @@ final class ComposeNSTextView: NSTextView {
             return
         }
         if slashCommandMode {
-            if event.keyCode == 48 && !event.modifierFlags.contains(.control) {
+            switch composeSlashSelectionAction(keyCode: event.keyCode, modifiers: event.modifierFlags) {
+            case .accept:
                 onSlashAccept?()
                 return
-            }
-            if event.keyCode == 126 {
-                onSlashNavigate?(-1)
+            case let .navigate(delta):
+                onSlashNavigate?(delta)
                 return
-            }
-            if event.keyCode == 125 {
-                onSlashNavigate?(1)
-                return
-            }
-            if event.keyCode == 53 {
+            case .dismiss:
                 onSlashDismiss?()
                 return
+            case .none:
+                break
             }
         }
         // Shift+Enter = send (fallback for non-bundled contexts)
@@ -425,17 +452,18 @@ final class ComposeNSTextView: NSTextView {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
         if slashCommandMode {
-            if event.keyCode == 48 && !flags.contains(.control) {
+            switch composeSlashSelectionAction(keyCode: event.keyCode, modifiers: event.modifierFlags) {
+            case .accept:
                 onSlashAccept?()
                 return true
-            }
-            if event.keyCode == 126 {
-                onSlashNavigate?(-1)
+            case let .navigate(delta):
+                onSlashNavigate?(delta)
                 return true
-            }
-            if event.keyCode == 125 {
-                onSlashNavigate?(1)
+            case .dismiss:
+                onSlashDismiss?()
                 return true
+            case .none:
+                break
             }
         }
 
@@ -517,21 +545,18 @@ final class ComposeNSTextView: NSTextView {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
 
         if slashCommandMode {
-            if event.keyCode == 48 && !flags.contains(.control) {
+            switch composeSlashSelectionAction(keyCode: event.keyCode, modifiers: event.modifierFlags) {
+            case .accept:
                 onSlashAccept?()
                 return
-            }
-            if event.keyCode == 126 {
-                onSlashNavigate?(-1)
+            case let .navigate(delta):
+                onSlashNavigate?(delta)
                 return
-            }
-            if event.keyCode == 125 {
-                onSlashNavigate?(1)
-                return
-            }
-            if event.keyCode == 53 {
+            case .dismiss:
                 onSlashDismiss?()
                 return
+            case .none:
+                break
             }
         }
 
