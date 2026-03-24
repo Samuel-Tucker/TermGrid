@@ -1,6 +1,6 @@
 ---
 name: termgrid-boss-orchestrator
-description: Use when acting as Codex - Boss for this repo: teaching the user multi-agent workflow, deciding whether tasks can run now or should queue, creating worktrees, and preparing worker prompts.
+description: "Use when acting as Codex - Boss for this repo: teaching the user multi-agent workflow, deciding whether tasks can run now or should queue, creating worktrees, and preparing worker prompts."
 ---
 
 # TermGrid Boss Orchestrator
