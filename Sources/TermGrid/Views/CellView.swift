@@ -717,6 +717,8 @@ struct CellView: View {
                                 ),
                                 pendingCharacter: paneState.phantomPendingCharacter,
                                 historyMode: paneState.composeHistoryActive,
+                                slashCommands: paneState.composeHistoryActive ? [] : paneState.slashCommands,
+                                slashCommandSelectedIndex: paneState.slashCommandSelectedIndex,
                                 ghostText: (uiState.ghostEnabled && !paneState.composeHistoryActive) ? paneState.ghostText : "",
                                 onSend: { text in
                                     // Save to history
@@ -730,6 +732,7 @@ struct CellView: View {
                                     paneState.phantomPendingCharacter = nil
                                     paneState.ghostText = ""
                                     paneState.ghostFullToken = ""
+                                    dismissSlashCommands(for: paneState)
                                     paneState.composeHistoryActive = false
                                     paneState.composeHistorySelectedIndex = 0
                                     // Return focus to terminal
@@ -741,9 +744,19 @@ struct CellView: View {
                                     paneState.ghostText = ""
                                     paneState.ghostFullToken = ""
                                     paneState.ghostAccepted = false
+                                    dismissSlashCommands(for: paneState)
                                     paneState.composeHistoryActive = false
                                     paneState.composeHistorySelectedIndex = 0
                                     returnFocusToTerminal()
+                                },
+                                onSlashNavigate: { delta in
+                                    navigateSlashCommands(for: paneState, delta: delta)
+                                },
+                                onSlashAccept: {
+                                    acceptSlashCommand(for: paneState)
+                                },
+                                onSlashDismiss: {
+                                    dismissSlashCommands(for: paneState)
                                 },
                                 onControlPassthrough: { ctrlChar in
                                     session.send(ctrlChar)
@@ -808,6 +821,7 @@ struct CellView: View {
                                     completionEngine.requestPredictions(for: paneState.phantomComposeText)
                                 },
                                 onTextChanged: { newText in
+                                    refreshSlashCommands(for: paneState, text: newText, session: session)
                                     let previousGhost = paneState.ghostText
                                     let previousFullToken = paneState.ghostFullToken
                                     paneState.ghostText = ""
@@ -824,7 +838,9 @@ struct CellView: View {
                                             )
                                         }
                                     }
-                                    guard uiState.ghostEnabled, !paneState.composeHistoryActive else { return }
+                                    guard uiState.ghostEnabled,
+                                          !paneState.composeHistoryActive,
+                                          paneState.slashCommands.isEmpty else { return }
                                     // Sync MLX toggle to provider
                                     completionEngine.mlxProvider?.isEnabled = uiState.mlxEnabled
                                     // C4 fix: set lazy context provider (extracted only when MLX actually dispatches)
@@ -849,7 +865,7 @@ struct CellView: View {
 
                 // Classic ComposeBox — only when phantom is disabled
                 if !uiState.phantomComposeEnabled {
-                    ComposeBox { text in
+                    ComposeBox(agentType: session.detectedAgent, workingDirectory: cell.workingDirectory) { text in
                         session.submitComposeText(text)
                     }
                 }
@@ -881,6 +897,38 @@ struct CellView: View {
     }
 
     // MARK: - Phantom Compose Helpers
+
+    private func refreshSlashCommands(for pane: PaneComposeState, text: String, session: TerminalSession) {
+        pane.slashCommands = ComposeSlashCommandCatalog.suggestions(
+            for: text,
+            agentType: session.detectedAgent,
+            workingDirectory: cell.workingDirectory
+        )
+        pane.slashCommandSelectedIndex = min(
+            pane.slashCommandSelectedIndex,
+            max(0, pane.slashCommands.count - 1)
+        )
+    }
+
+    private func navigateSlashCommands(for pane: PaneComposeState, delta: Int) {
+        guard !pane.slashCommands.isEmpty else { return }
+        let maxIndex = pane.slashCommands.count - 1
+        pane.slashCommandSelectedIndex = max(0, min(maxIndex, pane.slashCommandSelectedIndex + delta))
+    }
+
+    private func acceptSlashCommand(for pane: PaneComposeState) {
+        guard pane.slashCommandSelectedIndex < pane.slashCommands.count else { return }
+        pane.phantomComposeText = ComposeSlashCommandCatalog.apply(
+            pane.slashCommands[pane.slashCommandSelectedIndex],
+            to: pane.phantomComposeText
+        )
+        dismissSlashCommands(for: pane)
+    }
+
+    private func dismissSlashCommands(for pane: PaneComposeState) {
+        pane.slashCommands = []
+        pane.slashCommandSelectedIndex = 0
+    }
 
     private func returnFocusToTerminal() {
         DispatchQueue.main.async {

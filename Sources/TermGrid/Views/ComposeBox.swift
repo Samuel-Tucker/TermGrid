@@ -2,9 +2,13 @@ import SwiftUI
 import AppKit
 
 struct ComposeBox: View {
+    let agentType: AgentType?
+    let workingDirectory: String?
     let onSend: (String) -> Void
     @State private var text = ""
     @State private var isCollapsed = false
+    @State private var slashCommands: [ComposeSlashCommand] = []
+    @State private var slashCommandSelectedIndex = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,22 +44,44 @@ struct ComposeBox: View {
             if !isCollapsed {
                 Divider()
 
-                HStack(alignment: .bottom, spacing: 6) {
-                    ComposeTextEditor(text: $text, onSend: sendText)
+                VStack(spacing: 0) {
+                    if !slashCommands.isEmpty {
+                        SlashCommandPopup(
+                            commands: slashCommands,
+                            selectedIndex: slashCommandSelectedIndex,
+                            onSelect: acceptSlashCommand
+                        )
+                        .padding(.horizontal, 4)
+                        .padding(.top, 4)
+                    }
+
+                    HStack(alignment: .bottom, spacing: 6) {
+                        ComposeTextEditor(
+                            text: $text,
+                            slashCommandMode: !slashCommands.isEmpty,
+                            onSend: sendText,
+                            onSlashNavigate: navigateSlashCommands,
+                            onSlashAccept: acceptSelectedSlashCommand,
+                            onSlashDismiss: dismissSlashCommands
+                        )
                         .frame(minHeight: 28, maxHeight: 100)
 
-                    Button(action: sendText) {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(text.isEmpty ? Theme.accentDisabled : Theme.accent)
+                        Button(action: sendText) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(text.isEmpty ? Theme.accentDisabled : Theme.accent)
+                        }
+                        .buttonStyle(.borderless)
+                        .disabled(text.isEmpty)
                     }
-                    .buttonStyle(.borderless)
-                    .disabled(text.isEmpty)
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
                 .background(Theme.composeBackground)
             }
+        }
+        .onChange(of: text, initial: true) { _, newText in
+            refreshSlashCommands(for: newText)
         }
     }
 
@@ -64,6 +90,39 @@ struct ComposeBox: View {
         guard !input.isEmpty else { return }
         onSend(input)
         text = ""
+        dismissSlashCommands()
+    }
+
+    private func refreshSlashCommands(for newText: String) {
+        let suggestions = ComposeSlashCommandCatalog.suggestions(
+            for: newText,
+            agentType: agentType,
+            workingDirectory: workingDirectory
+        )
+        slashCommands = suggestions
+        slashCommandSelectedIndex = min(slashCommandSelectedIndex, max(0, suggestions.count - 1))
+    }
+
+    private func navigateSlashCommands(_ delta: Int) {
+        guard !slashCommands.isEmpty else { return }
+        let maxIndex = slashCommands.count - 1
+        slashCommandSelectedIndex = max(0, min(maxIndex, slashCommandSelectedIndex + delta))
+    }
+
+    private func acceptSelectedSlashCommand() {
+        acceptSlashCommand(slashCommandSelectedIndex)
+    }
+
+    private func acceptSlashCommand(_ index: Int) {
+        guard index < slashCommands.count else { return }
+        slashCommandSelectedIndex = index
+        text = ComposeSlashCommandCatalog.apply(slashCommands[index], to: text)
+        dismissSlashCommands()
+    }
+
+    private func dismissSlashCommands() {
+        slashCommands = []
+        slashCommandSelectedIndex = 0
     }
 }
 
@@ -71,7 +130,11 @@ struct ComposeBox: View {
 
 struct ComposeTextEditor: NSViewRepresentable {
     @Binding var text: String
+    let slashCommandMode: Bool
     let onSend: () -> Void
+    let onSlashNavigate: (Int) -> Void
+    let onSlashAccept: () -> Void
+    let onSlashDismiss: () -> Void
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -103,29 +166,51 @@ struct ComposeTextEditor: NSViewRepresentable {
         textView.onShiftEnter = {
             coordinator.onSend()
         }
+        textView.onSlashNavigate = { coordinator.onSlashNavigate($0) }
+        textView.onSlashAccept = { coordinator.onSlashAccept() }
+        textView.onSlashDismiss = { coordinator.onSlashDismiss() }
 
         scrollView.documentView = textView
         return scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? NSTextView else { return }
+        guard let textView = scrollView.documentView as? ComposeNSTextView else { return }
         if textView.string != text {
             textView.string = text
         }
+        textView.slashCommandMode = slashCommandMode
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onSend: onSend)
+        Coordinator(
+            text: $text,
+            onSend: onSend,
+            onSlashNavigate: onSlashNavigate,
+            onSlashAccept: onSlashAccept,
+            onSlashDismiss: onSlashDismiss
+        )
     }
 
     class Coordinator: NSObject, NSTextViewDelegate {
         @Binding var text: String
         let onSend: () -> Void
+        let onSlashNavigate: (Int) -> Void
+        let onSlashAccept: () -> Void
+        let onSlashDismiss: () -> Void
 
-        init(text: Binding<String>, onSend: @escaping () -> Void) {
+        init(
+            text: Binding<String>,
+            onSend: @escaping () -> Void,
+            onSlashNavigate: @escaping (Int) -> Void,
+            onSlashAccept: @escaping () -> Void,
+            onSlashDismiss: @escaping () -> Void
+        ) {
             _text = text
             self.onSend = onSend
+            self.onSlashNavigate = onSlashNavigate
+            self.onSlashAccept = onSlashAccept
+            self.onSlashDismiss = onSlashDismiss
         }
 
         func textDidChange(_ notification: Notification) {
@@ -142,6 +227,10 @@ final class ComposeNSTextView: NSTextView {
     var onEnterSend: (() -> Void)?
     var onEscapeDismiss: (() -> Void)?
     var onControlPassthrough: ((String) -> Void)?  // sends ctrl char to PTY
+    var slashCommandMode: Bool = false
+    var onSlashNavigate: ((Int) -> Void)?
+    var onSlashAccept: (() -> Void)?
+    var onSlashDismiss: (() -> Void)?
     var useBlockCursor: Bool = false
     /// When true, Enter=send / Shift+Enter=newline (phantom mode, inverted from classic)
     var phantomMode: Bool = false
@@ -265,6 +354,20 @@ final class ComposeNSTextView: NSTextView {
         if phantomMode {
             return handlePhantomKeyEquivalent(with: event)
         }
+        if slashCommandMode {
+            if event.keyCode == 48 && !event.modifierFlags.contains(.control) {
+                onSlashAccept?()
+                return true
+            }
+            if event.keyCode == 126 {
+                onSlashNavigate?(-1)
+                return true
+            }
+            if event.keyCode == 125 {
+                onSlashNavigate?(1)
+                return true
+            }
+        }
         if event.keyCode == 36 && event.modifierFlags.contains(.shift) {
             onShiftEnter?()
             return true
@@ -282,6 +385,24 @@ final class ComposeNSTextView: NSTextView {
         if phantomMode {
             handlePhantomKeyDown(with: event)
             return
+        }
+        if slashCommandMode {
+            if event.keyCode == 48 && !event.modifierFlags.contains(.control) {
+                onSlashAccept?()
+                return
+            }
+            if event.keyCode == 126 {
+                onSlashNavigate?(-1)
+                return
+            }
+            if event.keyCode == 125 {
+                onSlashNavigate?(1)
+                return
+            }
+            if event.keyCode == 53 {
+                onSlashDismiss?()
+                return
+            }
         }
         // Shift+Enter = send (fallback for non-bundled contexts)
         if event.keyCode == 36 && event.modifierFlags.contains(.shift) {
@@ -302,6 +423,21 @@ final class ComposeNSTextView: NSTextView {
 
     private func handlePhantomKeyEquivalent(with event: NSEvent) -> Bool {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if slashCommandMode {
+            if event.keyCode == 48 && !flags.contains(.control) {
+                onSlashAccept?()
+                return true
+            }
+            if event.keyCode == 126 {
+                onSlashNavigate?(-1)
+                return true
+            }
+            if event.keyCode == 125 {
+                onSlashNavigate?(1)
+                return true
+            }
+        }
 
         // Tab (keyCode 48) without Ctrl = accept ghost text or no-op
         if event.keyCode == 48 && !flags.contains(.control) {
@@ -379,6 +515,25 @@ final class ComposeNSTextView: NSTextView {
 
     private func handlePhantomKeyDown(with event: NSEvent) {
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+
+        if slashCommandMode {
+            if event.keyCode == 48 && !flags.contains(.control) {
+                onSlashAccept?()
+                return
+            }
+            if event.keyCode == 126 {
+                onSlashNavigate?(-1)
+                return
+            }
+            if event.keyCode == 125 {
+                onSlashNavigate?(1)
+                return
+            }
+            if event.keyCode == 53 {
+                onSlashDismiss?()
+                return
+            }
+        }
 
         // Tab = accept full ghost text (fallback for keyDown path)
         if event.keyCode == 48 && !flags.contains(.control) {
@@ -464,9 +619,13 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
     @Binding var text: String
     let pendingCharacter: String?
     let historyMode: Bool
+    let slashCommandMode: Bool
     let ghostText: String
     let onSend: () -> Void
     let onDismiss: () -> Void
+    let onSlashNavigate: (Int) -> Void
+    let onSlashAccept: () -> Void
+    let onSlashDismiss: () -> Void
     let onControlPassthrough: (String) -> Void
     let onHistoryTrigger: () -> Void
     let onHistoryNavigate: (Int) -> Void
@@ -520,6 +679,9 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
         textView.onGhostAccept = { coordinator.onGhostAccept() }
         textView.onGhostAcceptWord = { coordinator.onGhostAcceptWord() }
         textView.onTextChanged = { coordinator.onTextChanged($0) }
+        textView.onSlashNavigate = { coordinator.onSlashNavigate($0) }
+        textView.onSlashAccept = { coordinator.onSlashAccept() }
+        textView.onSlashDismiss = { coordinator.onSlashDismiss() }
 
         scrollView.documentView = textView
 
@@ -540,6 +702,7 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
             textView.string = text
         }
         textView.historyMode = historyMode
+        textView.slashCommandMode = slashCommandMode
         // Sync ghost text
         if ghostText.isEmpty {
             textView.hideGhostText()
@@ -550,6 +713,9 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(text: $text, onSend: onSend, onDismiss: onDismiss,
+                    onSlashNavigate: onSlashNavigate,
+                    onSlashAccept: onSlashAccept,
+                    onSlashDismiss: onSlashDismiss,
                     onControlPassthrough: onControlPassthrough,
                     onHistoryTrigger: onHistoryTrigger,
                     onHistoryNavigate: onHistoryNavigate,
@@ -564,6 +730,9 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
         @Binding var text: String
         let onSend: () -> Void
         let onDismiss: () -> Void
+        let onSlashNavigate: (Int) -> Void
+        let onSlashAccept: () -> Void
+        let onSlashDismiss: () -> Void
         let onControlPassthrough: (String) -> Void
         let onHistoryTrigger: () -> Void
         let onHistoryNavigate: (Int) -> Void
@@ -574,6 +743,9 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
         let onTextChanged: (String) -> Void
 
         init(text: Binding<String>, onSend: @escaping () -> Void, onDismiss: @escaping () -> Void,
+             onSlashNavigate: @escaping (Int) -> Void,
+             onSlashAccept: @escaping () -> Void,
+             onSlashDismiss: @escaping () -> Void,
              onControlPassthrough: @escaping (String) -> Void,
              onHistoryTrigger: @escaping () -> Void,
              onHistoryNavigate: @escaping (Int) -> Void,
@@ -585,6 +757,9 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
             _text = text
             self.onSend = onSend
             self.onDismiss = onDismiss
+            self.onSlashNavigate = onSlashNavigate
+            self.onSlashAccept = onSlashAccept
+            self.onSlashDismiss = onSlashDismiss
             self.onControlPassthrough = onControlPassthrough
             self.onHistoryTrigger = onHistoryTrigger
             self.onHistoryNavigate = onHistoryNavigate
@@ -602,15 +777,71 @@ struct PhantomComposeTextEditor: NSViewRepresentable {
     }
 }
 
+struct SlashCommandPopup: View {
+    let commands: [ComposeSlashCommand]
+    let selectedIndex: Int
+    let onSelect: (Int) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            let visible = Array(commands.prefix(6))
+            ForEach(Array(visible.enumerated()), id: \.element.id) { index, command in
+                HStack(spacing: 8) {
+                    Text(command.trigger)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(index == selectedIndex ? Theme.accent : Theme.headerText)
+
+                    Text(command.description.isEmpty ? sourceLabel(for: command.source) : command.description)
+                        .font(.system(size: 10))
+                        .foregroundColor(Theme.composeChrome)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    if command.source != .builtin {
+                        Text(sourceLabel(for: command.source))
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundColor(Theme.historyTimestamp)
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(index == selectedIndex ? Theme.historyRowSelected : Color.clear)
+                .contentShape(Rectangle())
+                .onTapGesture { onSelect(index) }
+            }
+        }
+        .background(Theme.composeBackground.opacity(0.95))
+        .clipShape(RoundedRectangle(cornerRadius: 4))
+        .overlay(
+            RoundedRectangle(cornerRadius: 4)
+                .stroke(Theme.phantomDivider.opacity(0.4), lineWidth: 1)
+        )
+    }
+
+    private func sourceLabel(for source: ComposeSlashCommand.Source) -> String {
+        switch source {
+        case .builtin: return "builtin"
+        case .project: return "project"
+        case .user: return "user"
+        }
+    }
+}
+
 // MARK: - Phantom Compose Overlay View
 
 struct PhantomComposeOverlay: View {
     @Binding var text: String
     let pendingCharacter: String?
     let historyMode: Bool
+    let slashCommands: [ComposeSlashCommand]
+    let slashCommandSelectedIndex: Int
     let ghostText: String
     let onSend: (String) -> Void
     let onDismiss: () -> Void
+    let onSlashNavigate: (Int) -> Void
+    let onSlashAccept: () -> Void
+    let onSlashDismiss: () -> Void
     let onControlPassthrough: (String) -> Void
     let onHistoryTrigger: () -> Void
     let onHistoryNavigate: (Int) -> Void
@@ -633,9 +864,27 @@ struct PhantomComposeOverlay: View {
             )
             .frame(height: 1)
 
+            if !slashCommands.isEmpty {
+                SlashCommandPopup(
+                    commands: slashCommands,
+                    selectedIndex: slashCommandSelectedIndex,
+                    onSelect: { index in
+                        onSlashNavigate(index - slashCommandSelectedIndex)
+                        onSlashAccept()
+                    }
+                )
+                .padding(.horizontal, 4)
+                .padding(.top, 4)
+            }
+
             // Hint bar
             HStack(spacing: 12) {
-                if !ghostText.isEmpty {
+                if !slashCommands.isEmpty {
+                    Text("Tab command")
+                        .foregroundColor(Theme.accent)
+                    Text("↑↓ choose")
+                        .foregroundColor(Theme.composeChrome)
+                } else if !ghostText.isEmpty {
                     Text("Tab accept")
                         .foregroundColor(Theme.accent)
                     Text("→ word")
@@ -658,9 +907,13 @@ struct PhantomComposeOverlay: View {
                 text: $text,
                 pendingCharacter: pendingCharacter,
                 historyMode: historyMode,
+                slashCommandMode: !slashCommands.isEmpty,
                 ghostText: ghostText,
                 onSend: sendText,
                 onDismiss: dismiss,
+                onSlashNavigate: onSlashNavigate,
+                onSlashAccept: onSlashAccept,
+                onSlashDismiss: onSlashDismiss,
                 onControlPassthrough: onControlPassthrough,
                 onHistoryTrigger: onHistoryTrigger,
                 onHistoryNavigate: onHistoryNavigate,

@@ -74,7 +74,7 @@ struct FloatingPaneView: View {
                     TerminalContainerView(session: session)
                         .id(session.sessionID)
 
-                    ComposeBox { text in
+                    ComposeBox(agentType: session.detectedAgent, workingDirectory: session.composeWorkingDirectory) { text in
                         session.submitComposeText(text)
                     }
                 }

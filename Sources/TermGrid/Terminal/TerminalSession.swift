@@ -18,6 +18,8 @@ final class TerminalSession {
     private let environment: [String]
     private let workingDirectory: String
 
+    var composeWorkingDirectory: String { workingDirectory }
+
     init(cellID: UUID, workingDirectory: String, sessionType: SessionType = .primary,
          environment: [String]? = nil, startImmediately: Bool = true) {
         self.cellID = cellID

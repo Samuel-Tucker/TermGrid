@@ -97,6 +97,7 @@ These are the packs to build in V5. They are listed in suggested implementation 
 | 018 | External Secrets Integration | Medium | Import-only (.env files + 1Password CLI). NOT live linkage. No macOS Keychain browsing. |
 | 022 | Popout Compose | Medium | Floating overlay on cell (not NSPanel). Shift+Enter sends, Escape dismisses. Cmd+E toggle. |
 | 032 | Compose Submit Parity for Codex | High | `Shift+Enter` in compose must fully submit in Codex terminals. No second Enter in the terminal. Preserve shell semantics. |
+| 033 | Compose Slash Command Parity | Medium | Slash popup for Claude/Codex compose. When popup is open, `Enter` or `Tab` accepts selection. |
 | 019 | Notification V2 | Medium | Research-backed. Extend hook scripts for structured events. Add in-app notification center. Output pattern detection. |
 | 015 | SSH Persistence | High | V1 scope: connect/disconnect + saved profiles + reconnect via tmux. NOT auto-reconnect on sleep. Cell model expansion needed. |
 | 026 Phase 2 | MLX LLM Enhancement | High | Local Qwen2.5-0.5B Q4, ~300MB download. Separate SPM target (TermGridMLX). Async enhancer when n-gram confidence < 0.6. 150ms debounce. |
@@ -128,6 +129,12 @@ These are the packs to build in V5. They are listed in suggested implementation 
 - **Core idea:** `Shift+Enter` from compose must perform a real submit for Codex, not only inject text into the prompt.
 - **Expected behavior:** One gesture sends and submits. User should not need to press `Enter` again in the terminal.
 - **Important constraint:** Preserve multi-line compose editing and normal shell send behavior. If Codex needs special handling, isolate it behind a single submit path instead of scattering agent checks across views.
+
+#### Pack 033 — Compose Slash Command Parity
+- **Spec:** `packs/033-compose-slash-command-parity.md`
+- **Core idea:** Claude/Codex compose should offer slash command discovery and selection before submit.
+- **Expected behavior:** when the slash popup is visible, `Enter` or `Tab` accepts the highlighted command, `Up/Down` navigates, and `Esc` dismisses.
+- **Important constraint:** remap `Enter` only while the slash popup is open. Normal multiline compose behavior should remain unchanged when the popup is closed.
 
 #### Pack 019 — Notification V2
 - **Spec:** `packs/019-notification-v2-research.md`

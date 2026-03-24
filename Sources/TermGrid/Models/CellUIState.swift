@@ -16,6 +16,8 @@ final class PaneComposeState {
     var ghostText: String = ""
     var ghostFullToken: String = ""              // full predicted token (for feedback accuracy)
     var ghostAccepted: Bool = false              // was ghost accepted before send? (for learning)
+    var slashCommands: [ComposeSlashCommand] = []
+    var slashCommandSelectedIndex: Int = 0
     var composeHistoryActive: Bool = false
     var composeHistorySelectedIndex: Int = 0
 }

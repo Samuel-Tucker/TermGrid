@@ -193,19 +193,11 @@ struct ContentView: View {
     }
 
     private var notificationReceivers: some View {
-        Group {
-            notificationReceiversA
-            notificationReceiversB
-        }
-    }
-
-    private var notificationReceiversA: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPalette)) { _ in
+        ZStack {
+            notificationReceiver(for: .toggleCommandPalette) {
                 showCommandPalette.toggle()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .toggleFloatingPane)) { _ in
+            notificationReceiver(for: .toggleFloatingPane) {
                 if showFloatingPane {
                     sessionManager.killFloatingSession()
                     showFloatingPane = false
@@ -214,13 +206,13 @@ struct ContentView: View {
                     showFloatingPane = true
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteToggleAPILocker)) { _ in
+            notificationReceiver(for: .commandPaletteToggleAPILocker) {
                 sidePanel = sidePanel == .apiLocker ? .none : .apiLocker
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteToggleSkills)) { _ in
+            notificationReceiver(for: .commandPaletteToggleSkills) {
                 sidePanel = sidePanel == .skills ? .none : .skills
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteSwitchGrid)) { _ in
+            notificationReceiver(for: .commandPaletteSwitchGrid) {
                 let presets = GridPreset.allCases
                 if let idx = presets.firstIndex(of: store.workspace.gridLayout),
                    idx + 1 < presets.count {
@@ -229,39 +221,53 @@ struct ContentView: View {
                     store.setGridPreset(presets[0])
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteNewWorkspace)) { _ in
+            notificationReceiver(for: .commandPaletteNewWorkspace) {
                 createNewWorkspace()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteCloseWorkspace)) { _ in
+            notificationReceiver(for: .commandPaletteCloseWorkspace) {
                 closeWorkspace(at: collection.activeIndex)
             }
-    }
-
-    private var notificationReceiversB: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteNextWorkspace)) { _ in
+            notificationReceiver(for: .commandPaletteNextWorkspace) {
                 let next = (collection.activeIndex + 1) % collection.workspaces.count
                 switchWorkspace(to: next)
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPalettePrevWorkspace)) { _ in
+            notificationReceiver(for: .commandPalettePrevWorkspace) {
                 let prev = (collection.activeIndex - 1 + collection.workspaces.count) % collection.workspaces.count
                 switchWorkspace(to: prev)
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteSwapDirection)) { notification in
-                swapFocusedCell(direction: notification.object as? String ?? "right")
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteAddPanel)) { _ in
+            notificationReceiver(for: .commandPaletteAddPanel) {
                 if store.canAddPanel {
                     withAnimation(.easeInOut(duration: 0.2)) { _ = store.addPanel() }
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPalettePopoutReader)) { _ in
+            notificationReceiver(for: .commandPalettePopoutReader) {
                 triggerPopoutForFocusedCell()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteSaveSelectionToNote)) { _ in
+            notificationReceiver(for: .commandPaletteSaveSelectionToNote) {
                 saveSelectionToNote()
             }
+            notificationReceiver(for: .commandPaletteSwapDirection) { notification in
+                swapFocusedCell(direction: notification.object as? String ?? "right")
+            }
+        }
+    }
+
+    private func notificationReceiver(
+        for name: Notification.Name,
+        perform action: @escaping () -> Void
+    ) -> some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onReceive(NotificationCenter.default.publisher(for: name)) { _ in action() }
+    }
+
+    private func notificationReceiver(
+        for name: Notification.Name,
+        perform action: @escaping (Notification) -> Void
+    ) -> some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onReceive(NotificationCenter.default.publisher(for: name), perform: action)
     }
 
     var body: some View {
