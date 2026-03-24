@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import TermGridMLX
 
 struct Prediction: Equatable {
     let text: String
@@ -8,7 +9,7 @@ struct Prediction: Equatable {
 }
 
 enum PredictionSource {
-    case trigram, prefix, corpus
+    case trigram, prefix, corpus, mlx
 }
 
 @MainActor
@@ -16,10 +17,24 @@ enum PredictionSource {
 final class CompletionEngine {
     private(set) var predictions: [Prediction] = []
 
+    /// MLX completion provider — set externally, used as async enhancer.
+    var mlxProvider: MLXCompletionProvider?
+
+    /// Most recent MLX-enhanced prediction (replaces n-gram ghost when available).
+    /// C1 fix: directly populated by observing mlxProvider.lastCompletion.
+    private(set) var mlxPrediction: String?
+
+    /// The input snapshot that generated the current mlxPrediction (C3 fix).
+    private(set) var mlxPredictionInput: String?
+
+    /// Callback to extract terminal context on-demand (C4 fix: avoids extracting on every keystroke).
+    var terminalContextProvider: (() -> String)?
+
     private var db: AutocompleteDB?
     private var trigramEngine: TrigramEngine?
     private var trie: InMemoryTrie?
     private var debounceTask: Task<Void, Never>?
+    private var mlxObservationTask: Task<Void, Never>?
     private var bootstrapped = false
 
     func bootstrap() async throws {
@@ -47,18 +62,65 @@ final class CompletionEngine {
     }
 
     /// Request predictions for the current input. 50ms debounce.
-    func requestPredictions(for input: String, workingDirectory: String = "", domain: String = "shell") {
+    /// When MLX is enabled and n-gram confidence is low (< 0.6), dispatches async MLX query.
+    /// C4 fix: terminal context is extracted lazily only when MLX is actually dispatched.
+    func requestPredictions(for input: String, workingDirectory: String = "",
+                            domain: String = "shell") {
         debounceTask?.cancel()
+        mlxPrediction = nil
+        mlxPredictionInput = nil
         debounceTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(50))
             guard !Task.isCancelled else { return }
             computePredictions(for: input, domain: domain)
+
+            // Hybrid routing: if best n-gram confidence < 0.6, dispatch MLX enhancer
+            let bestScore = predictions.first?.score ?? 0
+            if bestScore < Scorer.confidenceThreshold,
+               let mlx = mlxProvider, mlx.isEnabled {
+                // C4 fix: extract terminal context only when MLX is dispatched (not every keystroke)
+                let termCtx = terminalContextProvider?() ?? ""
+                mlx.requestCompletion(
+                    input: input,
+                    terminalContext: termCtx,
+                    workingDirectory: workingDirectory
+                )
+                // C1 fix: start observing the provider for results
+                startMLXObservation()
+            } else {
+                mlxProvider?.cancel()
+            }
         }
     }
 
     func clearPredictions() {
         debounceTask?.cancel()
+        mlxObservationTask?.cancel()
+        mlxProvider?.cancel()
+        mlxPrediction = nil
+        mlxPredictionInput = nil
         predictions = []
+    }
+
+    // MARK: - MLX Observation (C1 fix)
+
+    /// Poll for MLX provider result. Lightweight — checks every 50ms while generating.
+    private func startMLXObservation() {
+        mlxObservationTask?.cancel()
+        mlxObservationTask = Task { @MainActor in
+            guard let mlx = mlxProvider else { return }
+            // Wait for generation to complete
+            while mlx.isGenerating || mlx.lastCompletion == nil {
+                try? await Task.sleep(for: .milliseconds(50))
+                guard !Task.isCancelled else { return }
+                if !mlx.isGenerating { break }
+            }
+            guard !Task.isCancelled else { return }
+            if let result = mlx.lastCompletion, let inputSnapshot = mlx.lastCompletionInput {
+                self.mlxPrediction = result
+                self.mlxPredictionInput = inputSnapshot
+            }
+        }
     }
 
     /// Record a sent command for learning.

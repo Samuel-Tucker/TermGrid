@@ -37,7 +37,7 @@ struct CellView: View {
     @State private var previewingFile: String? = nil
     @FocusState private var labelFieldFocused: Bool
 
-    private static let headerButtonIDs = ["splitH", "splitV", "folder", "explorer", "git", "notes"]
+    private static let headerButtonIDs = ["splitH", "splitV", "folder", "explorer", "git", "notes", "mlx"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -196,6 +196,26 @@ struct CellView: View {
                 uiState.ghostFullToken = ""
             }
         }
+        .onChange(of: completionEngine.mlxPrediction) { _, mlxResult in
+            // MLX enhancer result arrived — replace ghost text if better than n-gram
+            guard let result = mlxResult, !result.isEmpty,
+                  uiState.phantomComposeActive, uiState.ghostEnabled, uiState.mlxEnabled,
+                  !uiState.composeHistoryActive else { return }
+            // C3 fix: verify the MLX result is for the current input, not stale
+            let currentInput = uiState.phantomComposeText
+            if let mlxInput = completionEngine.mlxPredictionInput,
+               !currentInput.hasPrefix(mlxInput) && mlxInput != currentInput {
+                return // stale result — user has moved on
+            }
+            let (_, partial) = Tokenizer.extractPartial(currentInput)
+            if !partial.isEmpty, result.lowercased().hasPrefix(partial.lowercased()) {
+                uiState.ghostText = String(result.dropFirst(partial.count))
+                uiState.ghostFullToken = result
+            } else {
+                uiState.ghostText = result
+                uiState.ghostFullToken = result
+            }
+        }
     }
 
     // MARK: - Header
@@ -332,6 +352,13 @@ struct CellView: View {
                     if uiState.bodyMode == .projectNotes { uiState.bodyMode = .terminal }
                 }
             }
+
+            headerIconButton(
+                id: "mlx",
+                systemName: uiState.mlxEnabled ? "brain.fill" : "brain",
+                label: uiState.mlxEnabled ? "Disable AI autocomplete" : "Enable AI autocomplete",
+                action: { uiState.mlxEnabled.toggle() }
+            )
 
             // Gap separator before destructive action
             Spacer().frame(width: 8)
@@ -795,7 +822,16 @@ struct CellView: View {
                                         }
                                     }
                                     guard uiState.ghostEnabled, !paneState.composeHistoryActive else { return }
-                                    completionEngine.requestPredictions(for: newText)
+                                    // Sync MLX toggle to provider
+                                    completionEngine.mlxProvider?.isEnabled = uiState.mlxEnabled
+                                    // C4 fix: set lazy context provider (extracted only when MLX actually dispatches)
+                                    completionEngine.terminalContextProvider = uiState.mlxEnabled
+                                        ? { [weak session] in session?.getRecentOutput(lines: 50) ?? "" }
+                                        : nil
+                                    completionEngine.requestPredictions(
+                                        for: newText,
+                                        workingDirectory: cell.workingDirectory
+                                    )
                                 }
                             )
                         }

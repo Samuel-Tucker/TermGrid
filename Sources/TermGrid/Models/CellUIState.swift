@@ -36,6 +36,7 @@ final class CellUIState {
     // MARK: - Phantom Compose (shared prefs)
     var phantomComposeEnabled: Bool = true       // user pref (toggle via Cmd+Shift+P)
     var ghostEnabled: Bool = true                // user pref (toggle via Cmd+Shift+P)
+    var mlxEnabled: Bool = false                 // user pref (toggle AI autocomplete)
 
     // MARK: - Per-pane compose state
     let primaryPane = PaneComposeState()

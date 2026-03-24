@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import UserNotifications
+import TermGridMLX
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -29,6 +30,8 @@ struct TermGridApp: App {
     @State private var vault = APIKeyVault()
     @State private var docsManager = DocsManager()
     @State private var completionEngine = CompletionEngine()
+    @State private var mlxModelManager = ModelManager()
+    @State private var mlxProvider: MLXCompletionProvider?
     @State private var skillsManager = SkillsManager()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -50,6 +53,9 @@ struct TermGridApp: App {
                 }
                 .task {
                     try? await completionEngine.bootstrap()
+                    let provider = MLXCompletionProvider(modelManager: mlxModelManager)
+                    mlxProvider = provider
+                    completionEngine.mlxProvider = provider
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .background || newPhase == .inactive {
@@ -61,6 +67,14 @@ struct TermGridApp: App {
                     vault.lock()
                     sessionManager.killAll()
                     notificationSubsystem.server?.stop()
+                    mlxModelManager.unloadModel()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .commandPaletteDownloadMLXModel)) { _ in
+                    mlxModelManager.downloadModel()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .commandPaletteRemoveMLXModel)) { _ in
+                    mlxModelManager.removeModel()
+                    mlxProvider?.isEnabled = false
                 }
         }
         .defaultSize(width: 900, height: 600)

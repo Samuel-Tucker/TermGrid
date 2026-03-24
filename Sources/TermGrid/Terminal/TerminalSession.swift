@@ -91,6 +91,17 @@ final class TerminalSession {
         terminalView.send(txt: text)
     }
 
+    /// Extract the last N lines of terminal output as plain text (for MLX context window).
+    func getRecentOutput(lines: Int = 50) -> String {
+        let terminal = terminalView.getTerminal()
+        let bufferData = terminal.getBufferAsData(kind: .normal)
+        guard let raw = String(data: bufferData, encoding: .utf8), !raw.isEmpty else { return "" }
+        let stripped = TerminalContentExtractor.stripAnsi(raw)
+        let allLines = stripped.components(separatedBy: "\n")
+        let recent = allLines.suffix(lines)
+        return recent.joined(separator: "\n")
+    }
+
     func kill() {
         if isRunning {
             terminalView.terminate()

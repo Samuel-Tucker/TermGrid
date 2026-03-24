@@ -343,6 +343,37 @@ final class CommandRegistry {
                     )
                 }
             ),
+            AppCommand(
+                id: "toggle-mlx-autocomplete",
+                title: "Toggle AI Autocomplete",
+                icon: "brain",
+                scope: .cell,
+                action: { ctx in ctx.cellUIState?.mlxEnabled.toggle() }
+            ),
+            AppCommand(
+                id: "download-mlx-model",
+                title: "Download AI Model (Qwen2.5-0.5B)",
+                icon: "arrow.down.circle",
+                scope: .global,
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteDownloadMLXModel,
+                        object: nil
+                    )
+                }
+            ),
+            AppCommand(
+                id: "remove-mlx-model",
+                title: "Remove AI Model",
+                icon: "trash",
+                scope: .global,
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteRemoveMLXModel,
+                        object: nil
+                    )
+                }
+            ),
         ]
     }
 }
@@ -366,4 +397,6 @@ extension Notification.Name {
     static let commandPaletteSwapDirection = Notification.Name("TermGrid.commandPalette.swapDirection")
     static let commandPaletteAddPanel = Notification.Name("TermGrid.commandPalette.addPanel")
     static let commandPalettePopoutReader = Notification.Name("TermGrid.commandPalette.popoutReader")
+    static let commandPaletteDownloadMLXModel = Notification.Name("TermGrid.commandPalette.downloadMLXModel")
+    static let commandPaletteRemoveMLXModel = Notification.Name("TermGrid.commandPalette.removeMLXModel")
 }

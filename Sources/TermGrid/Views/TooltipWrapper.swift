@@ -2,26 +2,77 @@ import SwiftUI
 import AppKit
 
 // MARK: - Shared Tooltip Panel (singleton, non-activating, mouse-transparent)
+// RULE: NO NSHostingView inside NSPanel — causes re-entrant constraint crash (Bug #2).
+// Pure AppKit only: NSTextField + frame-based layout.
 
 @MainActor
 final class TooltipPanel {
     static let shared = TooltipPanel()
 
     private var panel: NSPanel?
-    private var hostingView: NSHostingView<AnyView>?
     private var dismissTimer: Timer?
+    private var ready = false
 
-    private init() {}
+    private init() {
+        // Delay tooltip readiness to avoid crashing during initial layout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.ready = true
+        }
+    }
 
     func show(text: String, shortcut: String?, relativeTo view: NSView) {
+        guard ready else { return }
         dismiss()
 
-        let content = TooltipContent(text: text, shortcut: shortcut)
-        let hosting = NSHostingView(rootView: AnyView(content))
-        hosting.setFrameSize(hosting.fittingSize)
+        // Pure AppKit content — NO NSHostingView, NO Auto Layout
+        let container = NSView(frame: .zero)
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor(red: 0.145, green: 0.145, blue: 0.165, alpha: 1.0).cgColor // #25252A
+        container.layer?.cornerRadius = 5
+        container.layer?.borderColor = NSColor(red: 0.769, green: 0.647, blue: 0.455, alpha: 0.2).cgColor // #C4A574 @ 20%
+        container.layer?.borderWidth = 0.5
+
+        let label = NSTextField(labelWithString: text)
+        label.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        label.textColor = NSColor(red: 0.769, green: 0.647, blue: 0.455, alpha: 1.0) // #C4A574
+        label.backgroundColor = .clear
+        label.isBezeled = false
+        label.isEditable = false
+        label.sizeToFit()
+
+        var totalWidth = label.frame.width
+        var shortcutLabel: NSTextField?
+
+        if let shortcut, !shortcut.isEmpty {
+            let sc = NSTextField(labelWithString: shortcut)
+            sc.font = NSFont.systemFont(ofSize: 10, weight: .regular)
+            sc.textColor = NSColor(red: 0.416, green: 0.396, blue: 0.365, alpha: 1.0) // #6A655D
+            sc.backgroundColor = .clear
+            sc.isBezeled = false
+            sc.isEditable = false
+            sc.sizeToFit()
+            shortcutLabel = sc
+            totalWidth += 4 + sc.frame.width // 4pt spacing
+        }
+
+        let paddingH: CGFloat = 8
+        let paddingV: CGFloat = 5
+        let contentHeight = max(label.frame.height, shortcutLabel?.frame.height ?? 0)
+        let containerSize = NSSize(width: totalWidth + paddingH * 2, height: contentHeight + paddingV * 2)
+        container.frame = NSRect(origin: .zero, size: containerSize)
+
+        // Position label
+        label.frame.origin = NSPoint(x: paddingH, y: paddingV)
+        container.addSubview(label)
+
+        // Position shortcut
+        if let sc = shortcutLabel {
+            sc.frame.origin = NSPoint(x: paddingH + label.frame.width + 4, y: paddingV)
+            container.addSubview(sc)
+        }
 
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
+            contentRect: NSRect(origin: .zero, size: containerSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: true
@@ -31,22 +82,20 @@ final class TooltipPanel {
         panel.hasShadow = true
         panel.level = .floating
         panel.ignoresMouseEvents = true
-        panel.contentView = hosting
+        panel.contentView = container
         panel.animationBehavior = .utilityWindow
 
         // Position below the view, centered, 6pt gap
         let viewFrame = view.convert(view.bounds, to: nil)
         guard let window = view.window else { return }
         let screenOrigin = window.convertToScreen(viewFrame)
-        let panelSize = hosting.fittingSize
-        let x = screenOrigin.midX - panelSize.width / 2
-        let y = screenOrigin.minY - panelSize.height - 6
+        let x = screenOrigin.midX - containerSize.width / 2
+        let y = screenOrigin.minY - containerSize.height - 6
         panel.setFrameOrigin(NSPoint(x: x, y: y))
 
         self.panel = panel
-        self.hostingView = hosting
 
-        // Defer orderFront to avoid re-entrant constraint updates (crash fix)
+        // Defer orderFront to next run loop iteration
         DispatchQueue.main.async {
             panel.alphaValue = 0
             panel.orderFront(nil)
@@ -68,8 +117,6 @@ final class TooltipPanel {
         dismissTimer = nil
         guard let panel else { return }
         self.panel = nil
-        self.hostingView = nil
-        // Defer orderOut to avoid re-entrant constraint updates (crash fix)
         DispatchQueue.main.async {
             NSAnimationContext.runAnimationGroup({ ctx in
                 ctx.duration = 0.1
@@ -78,37 +125,6 @@ final class TooltipPanel {
                 panel.orderOut(nil)
             })
         }
-    }
-}
-
-// MARK: - Tooltip Visual Content
-
-private struct TooltipContent: View {
-    let text: String
-    let shortcut: String?
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Text(text)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(Color(hex: "#C4A574"))
-
-            if let shortcut, !shortcut.isEmpty {
-                Text(shortcut)
-                    .font(.system(size: 10, weight: .regular))
-                    .foregroundColor(Color(hex: "#6A655D"))
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .background(
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color(hex: "#25252A"))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .stroke(Color(hex: "#C4A574").opacity(0.2), lineWidth: 0.5)
-        )
     }
 }
 
@@ -175,7 +191,7 @@ final class TooltipTrackingView: NSView {
 // MARK: - View Extension
 
 extension View {
-    /// Attach a themed tooltip that appears below on hover after 750ms.
+    /// Attach a themed tooltip that appears below on hover after 250ms.
     /// Shortcuts in parentheses are automatically extracted and shown muted.
     /// e.g. .tooltip("Quick Terminal (⌘⇧F)")
     func tooltip(_ text: String) -> some View {
@@ -187,7 +203,6 @@ extension View {
     }
 
     private static func parseTooltip(_ text: String) -> (String, String?) {
-        // Extract "(⌘⇧F)" style shortcuts from end of string
         guard let openParen = text.lastIndex(of: "("),
               text.hasSuffix(")") else {
             return (text, nil)
