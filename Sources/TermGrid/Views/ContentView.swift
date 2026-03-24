@@ -383,22 +383,25 @@ struct ContentView: View {
             }
         }
 
-        // Phantom compose activation
-        if let cellID = identifyFocusedCell(),
-           let uiState = cellUIStates[cellID],
-           uiState.phantomComposeEnabled && !uiState.phantomComposeActive {
-            let flags = mods.intersection(.deviceIndependentFlagsMask)
-            if !flags.contains(.command) && !flags.contains(.control) {
-                let nonPrintable: Set<UInt16> = [
-                    48, 51, 53, 117, 123, 124, 125, 126,
-                    122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111,
-                    115, 119, 116, 121, 36, 76,
-                ]
-                if !nonPrintable.contains(event.keyCode),
-                   let eventChars = event.characters, !eventChars.isEmpty {
-                    uiState.phantomPendingCharacter = eventChars
-                    uiState.phantomComposeActive = true
-                    return .some(nil)
+        // Phantom compose activation — pane-aware for split terminals
+        if let focused = identifyFocusedPane(),
+           let uiState = cellUIStates[focused.cellID],
+           uiState.phantomComposeEnabled {
+            let pane = focused.isSplit ? uiState.splitPane : uiState.primaryPane
+            if !pane.phantomComposeActive {
+                let flags = mods.intersection(.deviceIndependentFlagsMask)
+                if !flags.contains(.command) && !flags.contains(.control) {
+                    let nonPrintable: Set<UInt16> = [
+                        48, 51, 53, 117, 123, 124, 125, 126,
+                        122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111,
+                        115, 119, 116, 121, 36, 76,
+                    ]
+                    if !nonPrintable.contains(event.keyCode),
+                       let eventChars = event.characters, !eventChars.isEmpty {
+                        pane.phantomPendingCharacter = eventChars
+                        pane.phantomComposeActive = true
+                        return .some(nil)
+                    }
                 }
             }
         }
@@ -408,16 +411,21 @@ struct ContentView: View {
 
     /// Synchronously identify which cell's terminal is the current first responder.
     private func identifyFocusedCell() -> UUID? {
+        identifyFocusedPane()?.cellID
+    }
+
+    /// Returns the focused cell ID and whether the split pane is focused.
+    private func identifyFocusedPane() -> (cellID: UUID, isSplit: Bool)? {
         guard let window = NSApp.keyWindow,
               let responder = window.firstResponder as? NSView else { return nil }
         for cell in store.workspace.visibleCells {
             if let session = sessionManager.session(for: cell.id),
                session.terminalView === responder {
-                return cell.id
+                return (cell.id, false)
             }
             if let splitSession = sessionManager.splitSession(for: cell.id),
                splitSession.terminalView === responder {
-                return cell.id
+                return (cell.id, true)
             }
         }
         return nil

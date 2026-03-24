@@ -540,7 +540,8 @@ struct CellView: View {
                     label: cell.terminalLabel,
                     placeholder: "Label terminal...",
                     onRestart: onRestartSession,
-                    onUpdateLabel: onUpdateTerminalLabel
+                    onUpdateLabel: onUpdateTerminalLabel,
+                    paneState: uiState.primaryPane
                 )
                 Divider()
                 labeledTerminalPane(
@@ -548,7 +549,8 @@ struct CellView: View {
                     label: cell.splitTerminalLabel,
                     placeholder: "Label terminal...",
                     onRestart: onRestartSplitSession,
-                    onUpdateLabel: onUpdateSplitTerminalLabel
+                    onUpdateLabel: onUpdateSplitTerminalLabel,
+                    paneState: uiState.splitPane
                 )
             }
         } else {
@@ -578,7 +580,8 @@ struct CellView: View {
         label: String,
         placeholder: String,
         onRestart: @escaping () -> Void,
-        onUpdateLabel: @escaping (String) -> Void
+        onUpdateLabel: @escaping (String) -> Void,
+        paneState: PaneComposeState? = nil
     ) -> some View {
         VStack(spacing: 0) {
             TerminalLabelBar(
@@ -587,12 +590,12 @@ struct CellView: View {
                 agentType: session?.detectedAgent,
                 onCommit: onUpdateLabel
             )
-            terminalPane(session: session, onRestart: onRestart)
+            terminalPane(session: session, onRestart: onRestart, paneState: paneState ?? uiState.primaryPane)
         }
     }
 
     @ViewBuilder
-    private func terminalPane(session: TerminalSession?, onRestart: @escaping () -> Void) -> some View {
+    private func terminalPane(session: TerminalSession?, onRestart: @escaping () -> Void, paneState: PaneComposeState) -> some View {
         if let session {
             VStack(spacing: 0) {
                 ZStack(alignment: .bottom) {
@@ -635,29 +638,29 @@ struct CellView: View {
                         }
 
                         // Dim overlay when phantom compose is active
-                        if uiState.phantomComposeEnabled && uiState.phantomComposeActive {
+                        if uiState.phantomComposeEnabled && paneState.phantomComposeActive {
                             Color.black.opacity(0.15)
                                 .allowsHitTesting(false)
                         }
                     }
 
                     // Phantom compose overlay — inside the ZStack, pinned to bottom
-                    if uiState.phantomComposeEnabled && uiState.phantomComposeActive {
+                    if uiState.phantomComposeEnabled && paneState.phantomComposeActive {
                         VStack(spacing: 0) {
                             // History popup (grows upward above compose)
-                            if uiState.composeHistoryActive {
+                            if paneState.composeHistoryActive {
                                 ComposeHistoryPopup(
                                     history: composeHistory,
-                                    query: uiState.phantomComposeText,
-                                    selectedIndex: uiState.composeHistorySelectedIndex,
+                                    query: paneState.phantomComposeText,
+                                    selectedIndex: paneState.composeHistorySelectedIndex,
                                     onSelect: { content in
-                                        uiState.phantomComposeText = content
-                                        uiState.composeHistoryActive = false
-                                        uiState.composeHistorySelectedIndex = 0
+                                        paneState.phantomComposeText = content
+                                        paneState.composeHistoryActive = false
+                                        paneState.composeHistorySelectedIndex = 0
                                     },
                                     onDismiss: {
-                                        uiState.composeHistoryActive = false
-                                        uiState.composeHistorySelectedIndex = 0
+                                        paneState.composeHistoryActive = false
+                                        paneState.composeHistorySelectedIndex = 0
                                     }
                                 )
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -665,42 +668,51 @@ struct CellView: View {
 
                             PhantomComposeOverlay(
                                 text: Binding(
-                                    get: { uiState.phantomComposeText },
-                                    set: { uiState.phantomComposeText = $0 }
+                                    get: { paneState.phantomComposeText },
+                                    set: { paneState.phantomComposeText = $0 }
                                 ),
-                                pendingCharacter: uiState.phantomPendingCharacter,
-                                historyMode: uiState.composeHistoryActive,
-                                ghostText: (uiState.ghostEnabled && !uiState.composeHistoryActive) ? uiState.ghostText : "",
+                                pendingCharacter: paneState.phantomPendingCharacter,
+                                historyMode: paneState.composeHistoryActive,
+                                ghostText: (uiState.ghostEnabled && !paneState.composeHistoryActive) ? paneState.ghostText : "",
                                 onSend: { text in
                                     // Save to history
                                     onAddToComposeHistory(text)
                                     // Learn from sent command
-                                    completionEngine.recordCommand(text, acceptedSuggestion: uiState.ghostAccepted)
-                                    uiState.ghostAccepted = false
-                                    // Send each line with \r
+                                    completionEngine.recordCommand(text, acceptedSuggestion: paneState.ghostAccepted)
+                                    paneState.ghostAccepted = false
+                                    // Send text then \r separately so terminal processes the execute
                                     let lines = text.components(separatedBy: .newlines)
-                                    for line in lines {
-                                        if !line.isEmpty {
-                                            session.send(line + "\r")
+                                        .filter { !$0.isEmpty }
+                                    if lines.count == 1 {
+                                        session.send(lines[0])
+                                        session.send("\r")
+                                    } else {
+                                        // Multi-line: send each with \r, small delay between
+                                        for (i, line) in lines.enumerated() {
+                                            let delay = Double(i) * 0.05
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                                                session.send(line + "\r")
+                                            }
                                         }
                                     }
-                                    uiState.phantomComposeActive = false
-                                    uiState.phantomPendingCharacter = nil
-                                    uiState.ghostText = ""
-                                    uiState.ghostFullToken = ""
-                                    uiState.composeHistoryActive = false
-                                    uiState.composeHistorySelectedIndex = 0
+                                    // Dismiss compose
+                                    paneState.phantomComposeActive = false
+                                    paneState.phantomPendingCharacter = nil
+                                    paneState.ghostText = ""
+                                    paneState.ghostFullToken = ""
+                                    paneState.composeHistoryActive = false
+                                    paneState.composeHistorySelectedIndex = 0
                                     // Return focus to terminal
                                     returnFocusToTerminal()
                                 },
                                 onDismiss: {
-                                    uiState.phantomComposeActive = false
-                                    uiState.phantomPendingCharacter = nil
-                                    uiState.ghostText = ""
-                                    uiState.ghostFullToken = ""
-                                    uiState.ghostAccepted = false
-                                    uiState.composeHistoryActive = false
-                                    uiState.composeHistorySelectedIndex = 0
+                                    paneState.phantomComposeActive = false
+                                    paneState.phantomPendingCharacter = nil
+                                    paneState.ghostText = ""
+                                    paneState.ghostFullToken = ""
+                                    paneState.ghostAccepted = false
+                                    paneState.composeHistoryActive = false
+                                    paneState.composeHistorySelectedIndex = 0
                                     returnFocusToTerminal()
                                 },
                                 onControlPassthrough: { ctrlChar in
@@ -708,68 +720,68 @@ struct CellView: View {
                                 },
                                 onHistoryTrigger: {
                                     guard !composeHistory.isEmpty else { return }
-                                    uiState.composeHistoryActive = true
-                                    uiState.composeHistorySelectedIndex = 0
+                                    paneState.composeHistoryActive = true
+                                    paneState.composeHistorySelectedIndex = 0
                                 },
                                 onHistoryNavigate: { delta in
-                                    let filtered = filteredHistoryCount()
+                                    let filtered = filteredHistoryCount(for: paneState)
                                     guard filtered > 0 else { return }
                                     let maxIdx = min(filtered, 5) - 1
-                                    uiState.composeHistorySelectedIndex = max(0, min(maxIdx, uiState.composeHistorySelectedIndex + delta))
+                                    paneState.composeHistorySelectedIndex = max(0, min(maxIdx, paneState.composeHistorySelectedIndex + delta))
                                 },
                                 onHistoryConfirm: {
-                                    let entries = filteredHistory()
+                                    let entries = filteredHistory(for: paneState)
                                     let visible = Array(entries.prefix(5))
-                                    if uiState.composeHistorySelectedIndex < visible.count {
-                                        uiState.phantomComposeText = visible[uiState.composeHistorySelectedIndex].content
+                                    if paneState.composeHistorySelectedIndex < visible.count {
+                                        paneState.phantomComposeText = visible[paneState.composeHistorySelectedIndex].content
                                     }
-                                    uiState.composeHistoryActive = false
-                                    uiState.composeHistorySelectedIndex = 0
+                                    paneState.composeHistoryActive = false
+                                    paneState.composeHistorySelectedIndex = 0
                                 },
                                 onHistoryDismiss: {
-                                    uiState.composeHistoryActive = false
-                                    uiState.composeHistorySelectedIndex = 0
+                                    paneState.composeHistoryActive = false
+                                    paneState.composeHistorySelectedIndex = 0
                                 },
                                 onGhostAccept: {
                                     // Accept full ghost suggestion
-                                    let ghost = uiState.ghostText
-                                    let fullToken = uiState.ghostFullToken
+                                    let ghost = paneState.ghostText
+                                    let fullToken = paneState.ghostFullToken
                                     guard !ghost.isEmpty else { return }
-                                    let inputBefore = uiState.phantomComposeText
+                                    let inputBefore = paneState.phantomComposeText
                                     let (_, partial) = Tokenizer.extractPartial(inputBefore)
                                     if !partial.isEmpty && ghost.hasPrefix(partial) {
                                         let suffix = String(ghost.dropFirst(partial.count))
-                                        uiState.phantomComposeText += suffix
+                                        paneState.phantomComposeText += suffix
                                     } else {
-                                        uiState.phantomComposeText += (inputBefore.last == " " ? "" : " ") + ghost
+                                        paneState.phantomComposeText += (inputBefore.last == " " ? "" : " ") + ghost
                                     }
                                     // Boost confidence using the FULL token (C4 fix)
                                     completionEngine.recordAcceptance(input: inputBefore, acceptedSuggestion: fullToken)
-                                    uiState.ghostText = ""
-                                    uiState.ghostFullToken = ""
-                                    uiState.ghostAccepted = true
+                                    paneState.ghostText = ""
+                                    paneState.ghostFullToken = ""
+                                    paneState.ghostAccepted = true
                                     // Don't recordCommand here — happens on send (C3 fix)
                                 },
                                 onGhostAcceptWord: {
                                     // Accept first word of ghost
-                                    let ghost = uiState.ghostText
+                                    let ghost = paneState.ghostText
                                     guard !ghost.isEmpty else { return }
                                     let word = ghost.prefix(while: { !$0.isWhitespace })
-                                    let (_, partial) = Tokenizer.extractPartial(uiState.phantomComposeText)
+                                    let (_, partial) = Tokenizer.extractPartial(paneState.phantomComposeText)
                                     if !partial.isEmpty && ghost.hasPrefix(partial) {
                                         let suffix = String(word.dropFirst(partial.count))
-                                        uiState.phantomComposeText += suffix
+                                        paneState.phantomComposeText += suffix
                                     } else {
-                                        uiState.phantomComposeText += (uiState.phantomComposeText.last == " " ? "" : " ") + word
+                                        paneState.phantomComposeText += (paneState.phantomComposeText.last == " " ? "" : " ") + word
                                     }
                                     // Re-request predictions for updated text
-                                    completionEngine.requestPredictions(for: uiState.phantomComposeText)
+                                    completionEngine.requestPredictions(for: paneState.phantomComposeText)
                                 },
                                 onTextChanged: { newText in
-                                    let previousGhost = uiState.ghostText
-                                    let previousFullToken = uiState.ghostFullToken
-                                    uiState.ghostText = ""
-                                    uiState.ghostFullToken = ""
+                                    let previousGhost = paneState.ghostText
+                                    let previousFullToken = paneState.ghostFullToken
+                                    paneState.ghostText = ""
+                                    paneState.ghostFullToken = ""
                                     // Only penalize if user DIVERGED from the ghost (C1 fix)
                                     // If the typed char continues the ghost prefix, it's not a rejection
                                     if !previousGhost.isEmpty && !previousFullToken.isEmpty {
@@ -782,7 +794,7 @@ struct CellView: View {
                                             )
                                         }
                                     }
-                                    guard uiState.ghostEnabled, !uiState.composeHistoryActive else { return }
+                                    guard uiState.ghostEnabled, !paneState.composeHistoryActive else { return }
                                     completionEngine.requestPredictions(for: newText)
                                 }
                             )
@@ -842,15 +854,15 @@ struct CellView: View {
         }
     }
 
-    private func filteredHistory() -> [ComposeHistoryEntry] {
+    private func filteredHistory(for pane: PaneComposeState? = nil) -> [ComposeHistoryEntry] {
         let reversed = composeHistory.reversed()
-        let query = uiState.phantomComposeText
+        let query = (pane ?? uiState.primaryPane).phantomComposeText
         if query.isEmpty { return Array(reversed) }
         return reversed.filter { fuzzyMatch(query: query, in: $0.content) != nil }
     }
 
-    private func filteredHistoryCount() -> Int {
-        filteredHistory().count
+    private func filteredHistoryCount(for pane: PaneComposeState? = nil) -> Int {
+        filteredHistory(for: pane).count
     }
 
     // MARK: - Helpers
@@ -959,10 +971,13 @@ struct CellView: View {
         let currentResponder = window.firstResponder
         let container = cellContainer(for: currentResponder) ?? window.contentView
 
-        // If phantom compose is active, dismiss it and return to terminal
-        if uiState.phantomComposeActive {
-            uiState.phantomComposeActive = false
-            uiState.phantomPendingCharacter = nil
+        // If phantom compose is active on either pane, dismiss it and return to terminal
+        let activePane: PaneComposeState? =
+            uiState.primaryPane.phantomComposeActive ? uiState.primaryPane :
+            uiState.splitPane.phantomComposeActive ? uiState.splitPane : nil
+        if let pane = activePane {
+            pane.phantomComposeActive = false
+            pane.phantomPendingCharacter = nil
             if let term = findView(ofType: SwiftTerm.LocalProcessTerminalView.self, in: container) {
                 window.makeFirstResponder(term)
             }

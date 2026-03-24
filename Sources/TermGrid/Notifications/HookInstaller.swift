@@ -3,7 +3,7 @@ import Foundation
 enum HookInstaller {
     private static let hooksDir = NSHomeDirectory() + "/.termgrid/hooks"
     private static let versionFile = hooksDir + "/.version"
-    private static let currentVersion = "2"
+    private static let currentVersion = "3"
 
     static func installIfNeeded() {
         let fm = FileManager.default
@@ -118,6 +118,7 @@ enum HookInstaller {
 
         var config = (try? String(contentsOfFile: configPath, encoding: .utf8)) ?? ""
 
+        // Remove old [notify] table format (was a map, Codex expects an array)
         if config.contains("[notify]") {
             let lines = config.components(separatedBy: "\n")
             var filtered: [String] = []
@@ -131,14 +132,8 @@ enum HookInstaller {
                     if line.hasPrefix("[") {
                         inNotifySection = false
                         filtered.append(line)
-                    } else if line.contains("termgrid") {
-                        continue
-                    } else if !line.trimmingCharacters(in: .whitespaces).isEmpty {
-                        if !filtered.contains("[notify]") {
-                            filtered.append("[notify]")
-                        }
-                        filtered.append(line)
                     }
+                    // Skip all lines in old [notify] section
                 } else {
                     filtered.append(line)
                 }
@@ -146,8 +141,13 @@ enum HookInstaller {
             config = filtered.joined(separator: "\n")
         }
 
+        // Remove any existing notify = ... line (array or string form)
+        let lines = config.components(separatedBy: "\n")
+        config = lines.filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("notify") || $0.contains("notify_") }.joined(separator: "\n")
+
         if !config.hasSuffix("\n") && !config.isEmpty { config += "\n" }
-        config += "\n[notify]\ncommand = \"\(hookCommand)\"\n"
+        // Codex expects notify as a TOML array of command strings
+        config += "\nnotify = [\"\(hookCommand)\"]\n"
 
         try? config.write(toFile: configPath, atomically: true, encoding: .utf8)
     }
