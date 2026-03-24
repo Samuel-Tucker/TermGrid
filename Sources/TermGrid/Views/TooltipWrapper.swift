@@ -10,10 +10,17 @@ final class TooltipPanel {
     private var panel: NSPanel?
     private var hostingView: NSHostingView<AnyView>?
     private var dismissTimer: Timer?
+    private var ready = false
 
-    private init() {}
+    private init() {
+        // Delay tooltip readiness to avoid crashing during initial layout
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.ready = true
+        }
+    }
 
     func show(text: String, shortcut: String?, relativeTo view: NSView) {
+        guard ready else { return }
         dismiss()
 
         let content = TooltipContent(text: text, shortcut: shortcut)
