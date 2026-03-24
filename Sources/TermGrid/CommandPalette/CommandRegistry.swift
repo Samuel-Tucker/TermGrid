@@ -344,6 +344,18 @@ final class CommandRegistry {
                 }
             ),
             AppCommand(
+                id: "save-selection-to-note",
+                title: "Save Selection to Note",
+                icon: "note.text.badge.plus",
+                scope: .cell,
+                action: { _ in
+                    NotificationCenter.default.post(
+                        name: .commandPaletteSaveSelectionToNote,
+                        object: nil
+                    )
+                }
+            ),
+            AppCommand(
                 id: "toggle-mlx-autocomplete",
                 title: "Toggle AI Autocomplete",
                 icon: "brain",
@@ -397,6 +409,7 @@ extension Notification.Name {
     static let commandPaletteSwapDirection = Notification.Name("TermGrid.commandPalette.swapDirection")
     static let commandPaletteAddPanel = Notification.Name("TermGrid.commandPalette.addPanel")
     static let commandPalettePopoutReader = Notification.Name("TermGrid.commandPalette.popoutReader")
+    static let commandPaletteSaveSelectionToNote = Notification.Name("TermGrid.commandPalette.saveSelectionToNote")
     static let commandPaletteDownloadMLXModel = Notification.Name("TermGrid.commandPalette.downloadMLXModel")
     static let commandPaletteRemoveMLXModel = Notification.Name("TermGrid.commandPalette.removeMLXModel")
 }

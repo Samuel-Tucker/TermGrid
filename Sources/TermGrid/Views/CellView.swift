@@ -34,6 +34,7 @@ struct CellView: View {
     @State private var showCloseConfirmation = false
     @State private var focusMonitor: Any? = nil
     @State private var gitModel = GitStatusModel()
+    @State private var sidebarNotesModel = SidebarNotesModel()
     @State private var previewingFile: String? = nil
     @FocusState private var labelFieldFocused: Bool
 
@@ -133,9 +134,23 @@ struct CellView: View {
                         onUpdate: onUpdateNotes,
                         onSendToTerminal: { text in
                             session?.send(text)
+                        },
+                        sidebarNotesModel: sidebarNotesModel,
+                        baseDirectory: effectiveDir,
+                        onEditNote: { path in
+                            uiState.pendingNotePath = path
+                            withAnimation(.easeInOut(duration: 0.4)) {
+                                uiState.bodyMode = .projectNotes
+                            }
                         }
                     )
-                    .frame(width: 160)
+                    .frame(width: 180)
+                    .onChange(of: uiState.bodyMode) { _, newMode in
+                        if newMode != .projectNotes {
+                            // Refresh sidebar list when returning from project notes
+                            sidebarNotesModel.loadNotes(baseDirectory: effectiveDir)
+                        }
+                    }
                 }
             }
             .clipped()
@@ -550,9 +565,11 @@ struct CellView: View {
                 cellID: cell.id,
                 effectiveDirectory: effectiveDir,
                 onChooseDirectory: { pickBothDirectories() },
-                onSendToTerminal: { text in session?.send(text) }
+                onSendToTerminal: { text in session?.send(text) },
+                initialNotePath: uiState.pendingNotePath
             )
             .transition(.opacity)
+            .onAppear { uiState.pendingNotePath = nil }
         }
     }
 
@@ -707,21 +724,7 @@ struct CellView: View {
                                     // Learn from sent command
                                     completionEngine.recordCommand(text, acceptedSuggestion: paneState.ghostAccepted)
                                     paneState.ghostAccepted = false
-                                    // Send text then \r separately so terminal processes the execute
-                                    let lines = text.components(separatedBy: .newlines)
-                                        .filter { !$0.isEmpty }
-                                    if lines.count == 1 {
-                                        session.send(lines[0])
-                                        session.send("\r")
-                                    } else {
-                                        // Multi-line: send each with \r, small delay between
-                                        for (i, line) in lines.enumerated() {
-                                            let delay = Double(i) * 0.05
-                                            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                                                session.send(line + "\r")
-                                            }
-                                        }
-                                    }
+                                    session.submitComposeText(text)
                                     // Dismiss compose
                                     paneState.phantomComposeActive = false
                                     paneState.phantomPendingCharacter = nil
@@ -847,7 +850,7 @@ struct CellView: View {
                 // Classic ComposeBox — only when phantom is disabled
                 if !uiState.phantomComposeEnabled {
                     ComposeBox { text in
-                        session.send(text)
+                        session.submitComposeText(text)
                     }
                 }
             }

@@ -91,6 +91,39 @@ final class TerminalSession {
         terminalView.send(txt: text)
     }
 
+    /// Submit compose text using semantics that match the active terminal target.
+    /// Agent prompts should be inserted as one payload and submitted once.
+    /// Shell compose preserves the existing command-per-line execution behavior.
+    func submitComposeText(_ text: String) {
+        let writes = Self.composeWriteChunks(for: text, detectedAgent: detectedAgent)
+        guard !writes.isEmpty else { return }
+        for chunk in writes {
+            send(chunk)
+        }
+    }
+
+    nonisolated static func composeWriteChunks(for text: String, detectedAgent: AgentType?) -> [String] {
+        guard !text.isEmpty else { return [] }
+
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+
+        if detectedAgent?.usesFullComposeSubmission == true {
+            return [normalized + "\r"]
+        }
+
+        return normalized
+            .components(separatedBy: .newlines)
+            .filter { !$0.isEmpty }
+            .map { $0 + "\r" }
+    }
+
+    /// Get the currently selected text in the terminal (if any).
+    func getSelectedText() -> String? {
+        return terminalView.getSelection()
+    }
+
     /// Extract the last N lines of terminal output as plain text (for MLX context window).
     func getRecentOutput(lines: Int = 50) -> String {
         let terminal = terminalView.getTerminal()
@@ -107,6 +140,17 @@ final class TerminalSession {
             terminalView.terminate()
             isRunning = false
             detectedAgent = nil
+        }
+    }
+}
+
+extension AgentType {
+    var usesFullComposeSubmission: Bool {
+        switch self {
+        case .claudeCode, .codex, .gemini, .aider:
+            return true
+        case .unknown:
+            return false
         }
     }
 }

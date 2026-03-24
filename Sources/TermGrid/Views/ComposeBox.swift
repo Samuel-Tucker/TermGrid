@@ -62,13 +62,7 @@ struct ComposeBox: View {
     private func sendText() {
         let input = text
         guard !input.isEmpty else { return }
-        // Send each line separately with \r to execute, handling multi-line input
-        let lines = input.components(separatedBy: .newlines)
-        for line in lines {
-            if !line.isEmpty {
-                onSend(line + "\r")
-            }
-        }
+        onSend(input)
         text = ""
     }
 }

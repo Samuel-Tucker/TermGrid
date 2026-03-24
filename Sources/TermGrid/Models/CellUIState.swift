@@ -38,6 +38,9 @@ final class CellUIState {
     var ghostEnabled: Bool = true                // user pref (toggle via Cmd+Shift+P)
     var mlxEnabled: Bool = false                 // user pref (toggle AI autocomplete)
 
+    /// Pending note path to open when switching to projectNotes bodyMode.
+    var pendingNotePath: String? = nil
+
     // MARK: - Per-pane compose state
     let primaryPane = PaneComposeState()
     let splitPane = PaneComposeState()

@@ -193,6 +193,13 @@ struct ContentView: View {
     }
 
     private var notificationReceivers: some View {
+        Group {
+            notificationReceiversA
+            notificationReceiversB
+        }
+    }
+
+    private var notificationReceiversA: some View {
         Color.clear
             .frame(width: 0, height: 0)
             .onReceive(NotificationCenter.default.publisher(for: .toggleCommandPalette)) { _ in
@@ -228,6 +235,11 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: .commandPaletteCloseWorkspace)) { _ in
                 closeWorkspace(at: collection.activeIndex)
             }
+    }
+
+    private var notificationReceiversB: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
             .onReceive(NotificationCenter.default.publisher(for: .commandPaletteNextWorkspace)) { _ in
                 let next = (collection.activeIndex + 1) % collection.workspaces.count
                 switchWorkspace(to: next)
@@ -246,6 +258,9 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .commandPalettePopoutReader)) { _ in
                 triggerPopoutForFocusedCell()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .commandPaletteSaveSelectionToNote)) { _ in
+                saveSelectionToNote()
             }
     }
 
@@ -559,6 +574,34 @@ struct ContentView: View {
         popoutCellLabel = cell?.label ?? ""
         popoutAgentType = session.detectedAgent
         showPopoutReader = true
+    }
+
+    // MARK: - Save Selection to Note
+
+    private func saveSelectionToNote() {
+        guard let cellID = focusedCellID,
+              let session = sessionManager.session(for: cellID),
+              let text = session.getSelectedText(), !text.isEmpty else { return }
+
+        let cell = store.workspace.visibleCells.first(where: { $0.id == cellID })
+        let dir = cell?.explorerDirectory.isEmpty == false ? cell!.explorerDirectory : (cell?.workingDirectory ?? "")
+        guard !dir.isEmpty else { return }
+
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+            .prefix(16)
+        let filename = "selection-\(timestamp)"
+
+        let model = SidebarNotesModel()
+        if let path = model.createNote(named: filename, content: text, baseDirectory: dir) {
+            // Switch to project notes with the new note open
+            if let uiState = cellUIStates[cellID] {
+                uiState.pendingNotePath = path
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    uiState.bodyMode = .projectNotes
+                }
+            }
+        }
     }
 
     // MARK: - Skill Injection

@@ -75,7 +75,7 @@ struct FloatingPaneView: View {
                         .id(session.sessionID)
 
                     ComposeBox { text in
-                        session.send(text)
+                        session.submitComposeText(text)
                     }
                 }
             }

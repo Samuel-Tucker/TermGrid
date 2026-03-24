@@ -16,14 +16,21 @@ struct ProjectNotesView: View {
     @State private var newItemIsFolder: Bool = false
     @State private var newItemName: String = ""
 
+    var initialNotePath: String? = nil
+
     init(cellID: UUID, effectiveDirectory: String,
          onChooseDirectory: @escaping () -> Void,
-         onSendToTerminal: ((String) -> Void)? = nil) {
+         onSendToTerminal: ((String) -> Void)? = nil,
+         initialNotePath: String? = nil) {
         self.cellID = cellID
         self.effectiveDirectory = effectiveDirectory
         self.onChooseDirectory = onChooseDirectory
         self.onSendToTerminal = onSendToTerminal
+        self.initialNotePath = initialNotePath
         self._model = State(initialValue: ProjectNotesModel(baseDirectory: effectiveDirectory))
+        if let path = initialNotePath {
+            self._selectedNote = State(initialValue: path)
+        }
     }
 
     var body: some View {
