@@ -4,6 +4,30 @@ import Testing
 
 @Suite("Compose Slash Command Tests")
 struct ComposeSlashCommandTests {
+    @Test func slashSelectionAcceptsOnPlainEnter() {
+        let action = composeSlashSelectionAction(keyCode: 36, modifiers: [])
+
+        #expect(action == .accept)
+    }
+
+    @Test func slashSelectionPreservesShiftEnterForSendPath() {
+        let action = composeSlashSelectionAction(keyCode: 36, modifiers: [.shift])
+
+        #expect(action == .none)
+    }
+
+    @Test func slashSelectionSupportsTabArrowsAndEscape() {
+        #expect(composeSlashSelectionAction(keyCode: 48, modifiers: []) == .accept)
+        #expect(composeSlashSelectionAction(keyCode: 126, modifiers: []) == .navigate(-1))
+        #expect(composeSlashSelectionAction(keyCode: 125, modifiers: []) == .navigate(1))
+        #expect(composeSlashSelectionAction(keyCode: 53, modifiers: []) == .dismiss)
+    }
+
+    @Test func slashSelectionIgnoresControlTab() {
+        let action = composeSlashSelectionAction(keyCode: 48, modifiers: [.control])
+
+        #expect(action == .none)
+    }
 
     @Test func activeQueryUsesCurrentLine() {
         let text = """
