@@ -33,6 +33,7 @@ struct TermGridApp: App {
     @State private var mlxModelManager = ModelManager()
     @State private var mlxProvider: MLXCompletionProvider?
     @State private var skillsManager = SkillsManager()
+    @AppStorage("hoverDimmingEnabled") private var hoverDimmingEnabled = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
@@ -89,6 +90,14 @@ struct TermGridApp: App {
                 }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
             }
+            CommandGroup(after: .sidebar) {
+                Toggle("Dim Inactive Panels", isOn: $hoverDimmingEnabled)
+                    .keyboardShortcut("d", modifiers: [.command, .shift])
+            }
+        }
+
+        Settings {
+            SettingsView()
         }
     }
 

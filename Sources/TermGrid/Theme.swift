@@ -34,6 +34,7 @@ enum Theme {
     static let notesBackground     = Color(hex: "#1E1E22")
     static let notesText           = Color(hex: "#A09A8E")
     static let notesSecondary      = Color(hex: "#7A756B")
+    static let scratchPadText      = Color(hex: "#C4BEB5")  // brighter for readability
 
     // MARK: - Accent
     static let accent              = Color(hex: "#C4A574")
@@ -58,6 +59,9 @@ enum Theme {
     static let tabActive           = Color(hex: "#252528")
     static let tabInactive         = Color(hex: "#222225")
     static let tabCloseButton      = Color(hex: "#7A756B")
+
+    // MARK: - Panel Header Colors (desaturated for dark theme)
+    static let panelColors: [PanelColor] = PanelColor.allCases
 
     // MARK: - Agent Badge Colors
     static let agentClaude         = Color(hex: "#D4A574")
@@ -97,6 +101,33 @@ extension AgentType {
         case .aider:      return "wrench"
         case .unknown:    return "cpu"
         }
+    }
+}
+
+// MARK: - Panel Color Palette
+
+enum PanelColor: String, CaseIterable, Identifiable {
+    case rose      = "#B86A6A"
+    case rust      = "#B87B5C"
+    case gold      = "#B89A5C"
+    case sage      = "#7A9B7A"
+    case teal      = "#5A9B8F"
+    case steel     = "#5C7A9B"
+    case lavender  = "#9B8AB8"
+    case slate     = "#6A7A8A"
+
+    var id: String { rawValue }
+    var color: Color { Color(hex: rawValue) }
+
+    /// Subtle header background tint
+    var tint: Color { color.opacity(0.15) }
+
+    /// Dot indicator color
+    var dot: Color { color.opacity(0.85) }
+
+    static func from(_ hex: String?) -> PanelColor? {
+        guard let hex else { return nil }
+        return allCases.first { $0.rawValue.uppercased() == hex.uppercased() }
     }
 }
 

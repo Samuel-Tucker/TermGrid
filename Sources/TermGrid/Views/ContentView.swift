@@ -25,6 +25,7 @@ struct ContentView: View {
     @State private var showFloatingPane = false
     @State private var isFloatHovered = false
     @State private var hoveredCellID: UUID? = nil
+    @AppStorage("hoverDimmingEnabled") private var hoverDimmingEnabled = false
     @State private var scrollMonitor: Any? = nil
     @State private var lastScrollCycleTime: Date = .distantPast
     @State private var isAddPanelHovered = false
@@ -669,6 +670,7 @@ struct ContentView: View {
             splitSession: splitSession,
             splitDirection: splitDir,
             onUpdateLabel: { store.updateLabel($0, for: cell.id) },
+            onUpdateHeaderColor: { store.updateHeaderColor($0, for: cell.id) },
             onUpdateNotes: { store.updateNotes($0, for: cell.id) },
             onUpdateWorkingDirectory: { newPath in
                 store.updateWorkingDirectory(newPath, for: cell.id)
@@ -733,9 +735,9 @@ struct ContentView: View {
             }
         }
         .overlay {
-            if hoveredCellID != nil && hoveredCellID != cell.id {
+            if hoverDimmingEnabled, hoveredCellID != nil, hoveredCellID != cell.id {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Theme.appBackground.opacity(0.3))
+                    .fill(Color.black.opacity(0.35))
                     .allowsHitTesting(false)
             }
         }

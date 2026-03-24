@@ -8,6 +8,7 @@ struct CellView: View {
     let splitSession: TerminalSession?
     let splitDirection: SplitDirection?
     let onUpdateLabel: (String) -> Void
+    let onUpdateHeaderColor: (String?) -> Void
     let onUpdateNotes: (String) -> Void
     let onUpdateWorkingDirectory: (String) -> Void
     let onRestartSession: () -> Void
@@ -29,9 +30,12 @@ struct CellView: View {
 
     @State private var isEditingLabel = false
     @State private var labelDraft = ""
+    @State private var showColorPicker = false
     @State private var hoveredHeaderButton: String? = nil
     @State private var isDragHandleHovered = false
     @State private var showCloseConfirmation = false
+    @State private var showScratchPadPopout = false
+    @State private var scratchPadDraft = ""
     @State private var focusMonitor: Any? = nil
     @State private var gitModel = GitStatusModel()
     @State private var sidebarNotesModel = SidebarNotesModel()
@@ -46,7 +50,7 @@ struct CellView: View {
             headerView
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Theme.headerBackground)
+                .background(headerBackgroundColor)
                 .zIndex(1)
 
             Theme.divider.frame(height: 1)
@@ -142,6 +146,12 @@ struct CellView: View {
                             withAnimation(.easeInOut(duration: 0.4)) {
                                 uiState.bodyMode = .projectNotes
                             }
+                        },
+                        headerColor: cell.headerColor,
+                        onUpdateHeaderColor: onUpdateHeaderColor,
+                        onPopOutScratchPad: {
+                            scratchPadDraft = cell.notes
+                            showScratchPadPopout = true
                         }
                     )
                     .frame(width: 180)
@@ -169,6 +179,20 @@ struct CellView: View {
                 .opacity(notificationState.showBorderPulse ? 1 : 0)
                 .animation(.easeInOut(duration: 1.5).repeatCount(2, autoreverses: true), value: notificationState.showBorderPulse)
         )
+        .overlay {
+            if showScratchPadPopout {
+                ZStack {
+                    Color.black.opacity(0.25)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .onTapGesture { dismissScratchPadPopout() }
+
+                    ScratchPadPopoutView(
+                        text: $scratchPadDraft,
+                        onDismiss: { dismissScratchPadPopout() }
+                    )
+                }
+            }
+        }
         .onAppear {
             // Ctrl+Tab local event monitor for focus cycling
             focusMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
@@ -267,6 +291,9 @@ struct CellView: View {
                     .fill(notificationDotColor)
                     .frame(width: 6, height: 6)
             }
+
+            // Panel color dot
+            panelColorDot
 
             if isEditingLabel {
                 TextField("Untitled", text: $labelDraft)
@@ -967,6 +994,69 @@ struct CellView: View {
         return path
     }
 
+    // MARK: - Panel Color
+
+    @ViewBuilder
+    private var headerBackgroundColor: some View {
+        ZStack {
+            Theme.headerBackground
+            if let panelColor = PanelColor.from(cell.headerColor) {
+                panelColor.tint
+            }
+        }
+    }
+
+    private var panelColorDot: some View {
+        Button {
+            showColorPicker.toggle()
+        } label: {
+            Circle()
+                .fill(PanelColor.from(cell.headerColor)?.dot ?? Theme.headerIcon.opacity(0.3))
+                .frame(width: 8, height: 8)
+                .overlay(
+                    Circle().stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                )
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showColorPicker, arrowEdge: .bottom) {
+            panelColorPalette
+        }
+    }
+
+    private var panelColorPalette: some View {
+        VStack(spacing: 6) {
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(22), spacing: 6), count: 4), spacing: 6) {
+                ForEach(PanelColor.allCases) { pc in
+                    Button {
+                        onUpdateHeaderColor(pc.rawValue)
+                        showColorPicker = false
+                    } label: {
+                        Circle()
+                            .fill(pc.dot)
+                            .frame(width: 18, height: 18)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(cell.headerColor == pc.rawValue ? 0.6 : 0), lineWidth: 1.5)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Button {
+                onUpdateHeaderColor(nil)
+                showColorPicker = false
+            } label: {
+                Text("Clear")
+                    .font(.system(size: 10))
+                    .foregroundColor(Theme.headerText)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(8)
+        .background(Theme.cellBackground)
+    }
+
     // MARK: - Actions
 
     private func commitLabel() {
@@ -978,6 +1068,13 @@ struct CellView: View {
 
     private func cancelLabel() {
         isEditingLabel = false
+    }
+
+    private func dismissScratchPadPopout() {
+        showScratchPadPopout = false
+        if scratchPadDraft != cell.notes {
+            onUpdateNotes(scratchPadDraft)
+        }
     }
 
     private func pickWorkingDirectory() {

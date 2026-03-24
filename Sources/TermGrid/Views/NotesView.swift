@@ -10,8 +10,12 @@ struct NotesView: View {
     let sidebarNotesModel: SidebarNotesModel
     let baseDirectory: String
     var onEditNote: ((String) -> Void)? = nil
+    var headerColor: String? = nil
+    var onUpdateHeaderColor: ((String?) -> Void)? = nil
+    var onPopOutScratchPad: (() -> Void)? = nil
 
     @State private var isEditing = false
+    @State private var showColorPicker = false
     @State private var draft = ""
     @State private var isCreating = false
     @State private var newNoteName = ""
@@ -43,7 +47,14 @@ struct NotesView: View {
             scratchPadSection
         }
         .padding(8)
-        .background(Theme.notesBackground)
+        .background(
+            ZStack {
+                Theme.notesBackground
+                if let panelColor = PanelColor.from(headerColor) {
+                    panelColor.tint
+                }
+            }
+        )
         .onAppear {
             sidebarNotesModel.loadNotes(baseDirectory: baseDirectory)
         }
@@ -59,6 +70,24 @@ struct NotesView: View {
 
     private var notesHeader: some View {
         HStack {
+            // Color dot for notes header
+            if onUpdateHeaderColor != nil {
+                Button {
+                    showColorPicker.toggle()
+                } label: {
+                    Circle()
+                        .fill(PanelColor.from(headerColor)?.dot ?? Theme.notesSecondary.opacity(0.3))
+                        .frame(width: 7, height: 7)
+                        .overlay(
+                            Circle().stroke(Color.white.opacity(0.1), lineWidth: 0.5)
+                        )
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showColorPicker, arrowEdge: .bottom) {
+                    notesColorPalette
+                }
+            }
+
             Text("NOTES")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(Theme.notesSecondary)
@@ -83,6 +112,40 @@ struct NotesView: View {
             .buttonStyle(.plain)
         }
         .padding(.bottom, 4)
+    }
+
+    private var notesColorPalette: some View {
+        VStack(spacing: 6) {
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(22), spacing: 6), count: 4), spacing: 6) {
+                ForEach(PanelColor.allCases) { pc in
+                    Button {
+                        onUpdateHeaderColor?(pc.rawValue)
+                        showColorPicker = false
+                    } label: {
+                        Circle()
+                            .fill(pc.dot)
+                            .frame(width: 18, height: 18)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white.opacity(headerColor == pc.rawValue ? 0.6 : 0), lineWidth: 1.5)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Button {
+                onUpdateHeaderColor?(nil)
+                showColorPicker = false
+            } label: {
+                Text("Clear")
+                    .font(.system(size: 10))
+                    .foregroundColor(Theme.notesSecondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(8)
+        .background(Theme.cellBackground)
     }
 
     // MARK: - Create Note Form
@@ -192,15 +255,32 @@ struct NotesView: View {
 
     private var scratchPadSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("SCRATCH PAD")
-                .font(.system(size: 9, weight: .semibold))
-                .foregroundColor(Theme.notesSecondary.opacity(0.6))
-                .textCase(.uppercase)
+            HStack {
+                Text("SCRATCH PAD")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(Theme.notesSecondary.opacity(0.6))
+                    .textCase(.uppercase)
+
+                Spacer()
+
+                if onPopOutScratchPad != nil {
+                    Button {
+                        if !isEditing { startEdit() }
+                        onPopOutScratchPad?()
+                    } label: {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 8))
+                            .foregroundColor(Theme.notesSecondary)
+                            .frame(width: 16, height: 16)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
 
             if isEditing {
                 TextEditor(text: $draft)
                     .font(.system(size: 12))
-                    .foregroundColor(Theme.notesText)
+                    .foregroundColor(Theme.scratchPadText)
                     .scrollContentBackground(.hidden)
                     .focused($editorFocused)
                     .onAppear {
@@ -222,7 +302,7 @@ struct NotesView: View {
                             Markdown(notes)
                                 .markdownTextStyle {
                                     FontSize(11)
-                                    ForegroundColor(Theme.notesText)
+                                    ForegroundColor(Theme.scratchPadText)
                                 }
                                 .markdownBlockStyle(\.codeBlock) { config in
                                     RunnableCodeBlock(
