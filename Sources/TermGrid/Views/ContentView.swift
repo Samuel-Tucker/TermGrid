@@ -631,7 +631,7 @@ struct ContentView: View {
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(isAddPanelHovered ? .white : Theme.accent)
+                .foregroundColor(isAddPanelHovered ? Theme.accent : Theme.accent.opacity(0.6))
                 .frame(width: 32, height: 32)
                 .background(
                     RoundedRectangle(cornerRadius: 7)
@@ -644,15 +644,14 @@ struct ContentView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 7)
                         .stroke(
-                            isAddPanelHovered ? Theme.accent : Theme.accent.opacity(0.3),
+                            isAddPanelHovered ? Theme.accent.opacity(0.5) : Theme.accent.opacity(0.2),
                             style: StrokeStyle(lineWidth: 1, dash: [3, 2])
                         )
                 )
-                .scaleEffect(isAddPanelHovered ? 1.1 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.12)) { isAddPanelHovered = hovering }
+            withAnimation(.easeInOut(duration: 0.15)) { isAddPanelHovered = hovering }
         }
         .tooltip("Add Panel (⌘⇧N)")
     }

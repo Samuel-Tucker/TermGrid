@@ -48,7 +48,7 @@ struct WorkspaceTabBar: View {
                     }
                     .buttonStyle(.plain)
                     .onHover { hovering in
-                        withAnimation(.easeInOut(duration: 0.1)) { addHovered = hovering }
+                        withAnimation(.easeInOut(duration: 0.15)) { addHovered = hovering }
                     }
                     .tooltip("New Workspace (⌘T)")
                 }
@@ -137,15 +137,15 @@ private struct WorkspaceTab: View {
                         .strokeBorder(Color.white.opacity(0.1), lineWidth: 1)
                 } else if isHovered {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color.white.opacity(0.04))
+                        .fill(Color.white.opacity(0.05))
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
                 }
             }
         )
-        // Close "x" overlaid on the right edge (hover-only, not for single workspace)
+        // Close "x" overlaid on the right edge (hover-only, fades in)
         .overlay(alignment: .topTrailing) {
-            if isHovered && !isOnly && !isEditing {
+            if !isOnly && !isEditing {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 7, weight: .bold))
@@ -158,6 +158,8 @@ private struct WorkspaceTab: View {
                 }
                 .buttonStyle(.plain)
                 .offset(x: 4, y: -4)
+                .opacity(isHovered ? 1 : 0)
+                .allowsHitTesting(isHovered)
             }
         }
         // Accent underline for active tab
@@ -170,7 +172,7 @@ private struct WorkspaceTab: View {
             }
         }
         .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.1)) { isHovered = hovering }
+            withAnimation(.easeInOut(duration: 0.15)) { isHovered = hovering }
         }
         .onTapGesture(count: 2) {
             editText = name
