@@ -92,6 +92,18 @@ final class TerminalSessionManager {
         splitDirections.removeValue(forKey: cellID)
     }
 
+    /// Promote the split session to primary: kill the current primary,
+    /// move the split session into the primary slot, and clear the split.
+    func promoteSplitToPrimary(for cellID: UUID) {
+        guard let split = splitSessions[cellID] else { return }
+        // Kill the current primary
+        sessions[cellID]?.kill()
+        // Move split → primary
+        sessions[cellID] = split
+        splitSessions.removeValue(forKey: cellID)
+        splitDirections.removeValue(forKey: cellID)
+    }
+
     func killSession(for cellID: UUID) {
         sessions[cellID]?.kill()
         sessions.removeValue(forKey: cellID)

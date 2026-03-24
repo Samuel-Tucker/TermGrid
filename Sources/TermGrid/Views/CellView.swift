@@ -13,11 +13,14 @@ struct CellView: View {
     let onRestartSession: () -> Void
     let onToggleSplit: (SplitDirection) -> Void
     let onRestartSplitSession: () -> Void
+    let onCloseSession: (() -> Void)?
+    let onCloseSplitSession: (() -> Void)?
     let onUpdateTerminalLabel: (String) -> Void
     let onUpdateSplitTerminalLabel: (String) -> Void
     let onUpdateExplorerDirectory: (String) -> Void
     let onUpdateExplorerViewMode: (ExplorerViewMode) -> Void
     let onCloseCell: () -> Void
+    let onPromoteSplit: (() -> Void)?
     let composeHistory: [ComposeHistoryEntry]
     let onAddToComposeHistory: (String) -> Void
     let uiState: CellUIState
@@ -35,6 +38,9 @@ struct CellView: View {
     @State private var focusMonitor: Any? = nil
     @State private var gitModel = GitStatusModel()
     @State private var previewingFile: String? = nil
+    @State private var showTerminalCloseAlert = false
+    @State private var terminalCloseLabel = ""
+    @State private var terminalCloseAction: (() -> Void)? = nil
     @FocusState private var labelFieldFocused: Bool
 
     private static let headerButtonIDs = ["splitH", "splitV", "folder", "explorer", "git", "notes"]
@@ -541,6 +547,7 @@ struct CellView: View {
                     placeholder: "Label terminal...",
                     onRestart: onRestartSession,
                     onUpdateLabel: onUpdateTerminalLabel,
+                    onCloseTerminal: onPromoteSplit != nil ? { onPromoteSplit?() } : nil,
                     paneState: uiState.primaryPane
                 )
                 Divider()
@@ -550,8 +557,18 @@ struct CellView: View {
                     placeholder: "Label terminal...",
                     onRestart: onRestartSplitSession,
                     onUpdateLabel: onUpdateSplitTerminalLabel,
+                    onCloseTerminal: onCloseSplitSession,
                     paneState: uiState.splitPane
                 )
+            }
+            .alert("Close \(terminalCloseLabel)?", isPresented: $showTerminalCloseAlert) {
+                Button("Cancel", role: .cancel) {
+                    terminalCloseAction = nil
+                }
+                Button("Close", role: .destructive) {
+                    terminalCloseAction?()
+                    terminalCloseAction = nil
+                }
             }
         } else {
             labeledTerminalPane(
@@ -581,15 +598,32 @@ struct CellView: View {
         placeholder: String,
         onRestart: @escaping () -> Void,
         onUpdateLabel: @escaping (String) -> Void,
+        onClose: (() -> Void)? = nil,
+        onCloseTerminal: (() -> Void)? = nil,
         paneState: PaneComposeState? = nil
     ) -> some View {
+        let bar = TerminalLabelBar(
+            label: label,
+            placeholder: placeholder,
+            agentType: session?.detectedAgent,
+            onCommit: onUpdateLabel,
+            onClose: onCloseTerminal != nil ? {
+                // Store info for confirmation alert
+                let barDisplayName: String
+                if let agent = session?.detectedAgent {
+                    barDisplayName = agent.displayName
+                } else if !label.isEmpty {
+                    barDisplayName = "'\(label)'"
+                } else {
+                    barDisplayName = "this terminal"
+                }
+                terminalCloseLabel = barDisplayName
+                terminalCloseAction = onCloseTerminal
+                showTerminalCloseAlert = true
+            } : nil
+        )
         VStack(spacing: 0) {
-            TerminalLabelBar(
-                label: label,
-                placeholder: placeholder,
-                agentType: session?.detectedAgent,
-                onCommit: onUpdateLabel
-            )
+            bar
             terminalPane(session: session, onRestart: onRestart, paneState: paneState ?? uiState.primaryPane)
         }
     }

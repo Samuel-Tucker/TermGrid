@@ -60,4 +60,37 @@ struct TerminalSessionManagerTests {
         #expect(manager.session(for: id1) == nil)
         #expect(manager.session(for: id2) == nil)
     }
+
+    @Test func promoteSplitToPrimaryMovesSplitIntoPrimarySlot() {
+        let manager = TerminalSessionManager()
+        let cellID = UUID()
+        let primary = manager.createSession(for: cellID, workingDirectory: "/tmp")
+        let split = manager.createSplitSession(for: cellID, workingDirectory: "/tmp", direction: .horizontal)
+        let splitID = split.sessionID
+
+        manager.promoteSplitToPrimary(for: cellID)
+
+        // Split session is now the primary
+        #expect(manager.session(for: cellID)?.sessionID == splitID)
+        // Split slot is cleared
+        #expect(manager.splitSession(for: cellID) == nil)
+        #expect(manager.splitDirection(for: cellID) == nil)
+        // Old primary was killed
+        #expect(primary.isRunning == false)
+        manager.killAll()
+    }
+
+    @Test func promoteSplitNoOpWhenNoSplit() {
+        let manager = TerminalSessionManager()
+        let cellID = UUID()
+        let primary = manager.createSession(for: cellID, workingDirectory: "/tmp")
+        let primaryID = primary.sessionID
+
+        manager.promoteSplitToPrimary(for: cellID)
+
+        // Primary unchanged — no split to promote
+        #expect(manager.session(for: cellID)?.sessionID == primaryID)
+        #expect(primary.isRunning == true)
+        manager.killAll()
+    }
 }

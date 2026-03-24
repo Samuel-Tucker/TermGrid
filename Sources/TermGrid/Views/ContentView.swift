@@ -645,6 +645,16 @@ struct ContentView: View {
                 let dir = sessionManager.splitDirection(for: cell.id) ?? .horizontal
                 sessionManager.createSplitSession(for: cell.id, workingDirectory: cell.workingDirectory, direction: dir)
             },
+            onCloseSession: {
+                // If split exists, kill both and clear split (toggle split off)
+                if sessionManager.splitDirection(for: cell.id) != nil {
+                    sessionManager.killSplitSession(for: cell.id)
+                }
+                sessionManager.createSession(for: cell.id, workingDirectory: cell.workingDirectory)
+            },
+            onCloseSplitSession: {
+                sessionManager.killSplitSession(for: cell.id)
+            },
             onUpdateTerminalLabel: { store.updateTerminalLabel($0, for: cell.id) },
             onUpdateSplitTerminalLabel: { store.updateSplitTerminalLabel($0, for: cell.id) },
             onUpdateExplorerDirectory: { newPath in
@@ -657,6 +667,13 @@ struct ContentView: View {
                 sessionManager.killSession(for: cell.id)
                 store.removeCell(id: cell.id)
             },
+            onPromoteSplit: sessionManager.splitSession(for: cell.id) != nil ? {
+                // Promote split terminal label to primary
+                let splitLabel = cell.splitTerminalLabel
+                sessionManager.promoteSplitToPrimary(for: cell.id)
+                store.updateTerminalLabel(splitLabel, for: cell.id)
+                store.updateSplitTerminalLabel("", for: cell.id)
+            } : nil,
             composeHistory: store.workspace.composeHistory,
             onAddToComposeHistory: { store.addToComposeHistory($0) },
             uiState: uiState(for: cell.id),
