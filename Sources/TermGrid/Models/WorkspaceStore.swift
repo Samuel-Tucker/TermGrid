@@ -38,6 +38,12 @@ final class WorkspaceStore {
         scheduleSave()
     }
 
+    func updateHeaderColor(_ color: String?, for cellID: UUID) {
+        guard let index = workspace.cells.firstIndex(where: { $0.id == cellID }) else { return }
+        workspace.cells[index].headerColor = color
+        scheduleSave()
+    }
+
     func updateNotes(_ notes: String, for cellID: UUID) {
         guard let index = workspace.cells.firstIndex(where: { $0.id == cellID }) else { return }
         workspace.cells[index].notes = notes

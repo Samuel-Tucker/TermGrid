@@ -58,12 +58,14 @@ struct Cell: Codable, Identifiable {
     var explorerViewMode: ExplorerViewMode
     var splitDirection: String?   // "horizontal", "vertical", or nil
     var showExplorer: Bool
+    var headerColor: String?      // hex string from PanelColor, nil = no color
 
     init(id: UUID = UUID(), label: String = "", notes: String = "",
          workingDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path,
          terminalLabel: String = "", splitTerminalLabel: String = "",
          explorerDirectory: String = "", explorerViewMode: ExplorerViewMode = .grid,
-         splitDirection: String? = nil, showExplorer: Bool = false) {
+         splitDirection: String? = nil, showExplorer: Bool = false,
+         headerColor: String? = nil) {
         self.id = id
         self.label = label
         self.notes = notes
@@ -74,6 +76,7 @@ struct Cell: Codable, Identifiable {
         self.explorerViewMode = explorerViewMode
         self.splitDirection = splitDirection
         self.showExplorer = showExplorer
+        self.headerColor = headerColor
     }
 
     init(from decoder: Decoder) throws {
@@ -89,6 +92,7 @@ struct Cell: Codable, Identifiable {
         explorerViewMode = (try? container.decode(ExplorerViewMode.self, forKey: .explorerViewMode)) ?? .grid
         splitDirection = try? container.decode(String.self, forKey: .splitDirection)
         showExplorer = (try? container.decode(Bool.self, forKey: .showExplorer)) ?? false
+        headerColor = try? container.decode(String.self, forKey: .headerColor)
     }
 }
 

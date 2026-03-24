@@ -16,6 +16,7 @@ struct NotesView: View {
 
     @State private var isEditing = false
     @State private var showColorPicker = false
+    @State private var hoveredButton: String? = nil
     @State private var draft = ""
     @State private var isCreating = false
     @State private var newNoteName = ""
@@ -105,11 +106,16 @@ struct NotesView: View {
             } label: {
                 Image(systemName: isCreating ? "xmark" : "plus")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(Theme.accent)
+                    .foregroundColor(hoveredButton == "create" ? Theme.accent : Theme.accent.opacity(0.5))
                     .frame(width: 20, height: 20)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .opacity(hoveredButton == "create" ? 0.95 : 0.55)
+            .animation(.easeOut(duration: 0.15), value: hoveredButton == "create")
+            .onHover { hovering in
+                hoveredButton = hovering ? "create" : nil
+            }
         }
         .padding(.bottom, 4)
     }
@@ -269,11 +275,20 @@ struct NotesView: View {
                         onPopOutScratchPad?()
                     } label: {
                         Image(systemName: "arrow.up.left.and.arrow.down.right")
-                            .font(.system(size: 8))
-                            .foregroundColor(Theme.notesSecondary)
-                            .frame(width: 16, height: 16)
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(hoveredButton == "expand" ? Theme.accent : Theme.accent.opacity(0.5))
+                            .frame(width: 20, height: 20)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(hoveredButton == "expand" ? Theme.accent.opacity(0.12) : Color.clear)
+                            )
                     }
                     .buttonStyle(.plain)
+                    .opacity(hoveredButton == "expand" ? 0.95 : 0.55)
+                    .animation(.easeOut(duration: 0.15), value: hoveredButton == "expand")
+                    .onHover { hovering in
+                        hoveredButton = hovering ? "expand" : nil
+                    }
                 }
             }
 

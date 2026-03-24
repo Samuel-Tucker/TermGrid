@@ -42,7 +42,7 @@ struct CellView: View {
     @State private var previewingFile: String? = nil
     @FocusState private var labelFieldFocused: Bool
 
-    private static let headerButtonIDs = ["splitH", "splitV", "folder", "explorer", "git", "notes", "mlx"]
+    private static let headerButtonIDs = ["splitH", "splitV", "folder", "explorer", "git", "notes", "mlx", "close"]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -262,18 +262,13 @@ struct CellView: View {
     @ViewBuilder
     private var headerView: some View {
         HStack {
-            // Drag handle with glass morphism hover
+            // Drag handle
             if showDragHandle {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(isDragHandleHovered ? Theme.accent : Theme.headerIcon)
                     .frame(width: 24, height: 24)
-                    .background(
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(.ultraThinMaterial)
-                            .opacity(isDragHandleHovered ? 1 : 0)
-                    )
-                    .scaleEffect(isDragHandleHovered ? 1.35 : 1.0)
+                    .scaleEffect(isDragHandleHovered ? 1.3 : 1.0)
                     .animation(.easeOut(duration: 0.15), value: isDragHandleHovered)
                     .contentShape(Rectangle())
                     .onHover { isDragHandleHovered = $0 }
@@ -395,37 +390,55 @@ struct CellView: View {
                 }
             }
 
-            headerIconButton(
-                id: "mlx",
-                systemName: uiState.mlxEnabled ? "brain.fill" : "brain",
-                label: uiState.mlxEnabled ? "Disable AI autocomplete" : "Enable AI autocomplete",
-                action: { uiState.mlxEnabled.toggle() }
-            )
-
-            // Gap separator before destructive action
-            Spacer().frame(width: 8)
-
-            // Close button — always orange, not part of dock neighbor magnification
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showCloseConfirmation = true
-                }
-            } label: {
-                Image(systemName: "xmark.circle.fill")
+            // MLX toggle — always gold, fill when on
+            Button { uiState.mlxEnabled.toggle() } label: {
+                Image(systemName: uiState.mlxEnabled ? "brain.fill" : "brain")
                     .font(.system(size: 12))
                     .foregroundColor(Theme.accent)
                     .frame(width: 22, height: 22)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .scaleEffect(hoveredHeaderButton == "close" ? 1.35 : 1.0)
+            .scaleEffect(hoveredHeaderButton == "mlx" ? 1.3 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: hoveredHeaderButton == "mlx")
+            .tooltip(uiState.mlxEnabled ? "Disable AI autocomplete" : "Enable AI autocomplete")
+            .onHover { hovering in
+                hoveredHeaderButton = hovering ? "mlx" : nil
+            }
+
+            // Gap separator before destructive action
+            Spacer().frame(width: 8)
+
+            // Close button — gold at rest, white/black on hover
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showCloseConfirmation = true
+                }
+            } label: {
+                ZStack {
+                    if hoveredHeaderButton == "close" {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 16, height: 16)
+                        Image(systemName: "xmark")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundColor(.black)
+                    } else {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(Theme.accent)
+                    }
+                }
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .scaleEffect(hoveredHeaderButton == "close" ? 1.3 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: hoveredHeaderButton == "close")
             .tooltip("Close terminal")
             .onHover { hovering in
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                    hoveredHeaderButton = hovering ? "close" : nil
-                }
+                hoveredHeaderButton = hovering ? "close" : nil
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.75), value: hoveredHeaderButton)
         }
     }
 
@@ -439,31 +452,21 @@ struct CellView: View {
         action: @escaping () -> Void
     ) -> some View {
         let isHovered = hoveredHeaderButton == id
-        let isAnyHovered = hoveredHeaderButton != nil
-        let neighbor = isNeighbor(id, to: hoveredHeaderButton)
-
-        let scale: CGFloat = isHovered ? 1.35 : (neighbor ? 1.12 : 1.0)
-        let blurRadius: CGFloat = isHovered ? 0 : (isAnyHovered ? (neighbor ? 0.5 : 1.5) : 0)
-        let iconColor = isHovered ? Theme.accent : Theme.headerIcon
 
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 12))
-                .foregroundColor(iconColor)
+                .foregroundColor(isHovered ? Theme.accent : Theme.headerIcon)
                 .frame(width: 22, height: 22)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .scaleEffect(scale)
-        .blur(radius: blurRadius)
-        .zIndex(isHovered ? 1 : 0)
+        .scaleEffect(isHovered ? 1.3 : 1.0)
+        .animation(.easeOut(duration: 0.15), value: isHovered)
         .tooltip(label)
         .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                hoveredHeaderButton = hovering ? id : nil
-            }
+            hoveredHeaderButton = hovering ? id : nil
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: hoveredHeaderButton)
     }
 
     private var notesIcon: String {
@@ -481,41 +484,24 @@ struct CellView: View {
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         let isHovered = hoveredHeaderButton == id
-        let isAnyHovered = hoveredHeaderButton != nil
-        let neighbor = isNeighbor(id, to: hoveredHeaderButton)
-
-        let scale: CGFloat = isHovered ? 1.35 : (neighbor ? 1.12 : 1.0)
-        let blurRadius: CGFloat = isHovered ? 0 : (isAnyHovered ? (neighbor ? 0.5 : 1.5) : 0)
-        let iconColor = isHovered ? Theme.accent : Theme.headerIcon
 
         Menu {
             content()
         } label: {
             Image(systemName: systemName)
                 .font(.system(size: 12))
-                .foregroundColor(iconColor)
+                .foregroundColor(isHovered ? Theme.accent : Theme.headerIcon)
                 .frame(width: 22, height: 22)
                 .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .scaleEffect(scale)
-        .blur(radius: blurRadius)
-        .zIndex(isHovered ? 1 : 0)
+        .scaleEffect(isHovered ? 1.3 : 1.0)
+        .animation(.easeOut(duration: 0.15), value: isHovered)
         .tooltip(label)
         .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                hoveredHeaderButton = hovering ? id : nil
-            }
+            hoveredHeaderButton = hovering ? id : nil
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: hoveredHeaderButton)
-    }
-
-    private func isNeighbor(_ id: String, to targetID: String?) -> Bool {
-        guard let targetID,
-              let targetIdx = Self.headerButtonIDs.firstIndex(of: targetID),
-              let currentIdx = Self.headerButtonIDs.firstIndex(of: id) else { return false }
-        return abs(targetIdx - currentIdx) == 1
     }
 
     // MARK: - Folder Pill Menu (dock-style hover, icon scales, text stays crisp)
@@ -523,10 +509,6 @@ struct CellView: View {
     @ViewBuilder
     private func folderPillMenu(path: String) -> some View {
         let isHovered = hoveredHeaderButton == "folder"
-        let isAnyHovered = hoveredHeaderButton != nil
-        let neighbor = isNeighbor("folder", to: hoveredHeaderButton)
-        let iconScale: CGFloat = isHovered ? 1.35 : (neighbor ? 1.12 : 1.0)
-        let blurRadius: CGFloat = isHovered ? 0 : (isAnyHovered ? (neighbor ? 0.5 : 1.5) : 0)
 
         Menu {
             Button("Set Both Directories") { pickBothDirectories() }
@@ -543,26 +525,22 @@ struct CellView: View {
             HStack(spacing: 4) {
                 Image(systemName: "folder.fill")
                     .font(.system(size: 8))
-                    .scaleEffect(iconScale)
                 Text(shortenPath(path))
                     .font(.system(size: 10, design: .monospaced))
             }
-            .foregroundColor(isHovered ? Theme.accent : Theme.accent.opacity(0.8))
+            .foregroundColor(isHovered ? Theme.accent : Theme.accent.opacity(0.7))
             .padding(.horizontal, 8)
             .padding(.vertical, 2)
             .background(Capsule().fill(Theme.cellBorder))
-            .blur(radius: blurRadius)
         }
         .menuStyle(.borderlessButton)
         .fixedSize()
-        .zIndex(isHovered ? 1 : 0)
+        .scaleEffect(isHovered ? 1.15 : 1.0)
+        .animation(.easeOut(duration: 0.15), value: isHovered)
         .tooltip("Directory")
         .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
-                hoveredHeaderButton = hovering ? "folder" : nil
-            }
+            hoveredHeaderButton = hovering ? "folder" : nil
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: hoveredHeaderButton)
     }
 
     // MARK: - Cell Body (page flip between terminal and explorer)

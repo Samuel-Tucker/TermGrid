@@ -8,6 +8,7 @@ struct ScratchPadPopoutView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var size: CGSize = CGSize(width: 400, height: 300)
     @State private var resizeDelta: CGSize = .zero
+    @State private var isCloseHovered = false
     @FocusState private var editorFocused: Bool
 
     private var currentWidth: CGFloat {
@@ -29,9 +30,12 @@ struct ScratchPadPopoutView: View {
                     Button { onDismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 12))
-                            .foregroundColor(Theme.headerIcon)
+                            .foregroundColor(isCloseHovered ? .primary : Theme.headerIcon)
                     }
                     .buttonStyle(.plain)
+                    .opacity(isCloseHovered ? 0.95 : 0.55)
+                    .animation(.easeOut(duration: 0.15), value: isCloseHovered)
+                    .onHover { isCloseHovered = $0 }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
