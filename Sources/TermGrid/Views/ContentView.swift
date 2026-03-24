@@ -756,10 +756,11 @@ struct ContentView: View {
     // MARK: - Session Creation
 
     private func ensureSession(for cell: Cell) {
-        guard sessionManager.session(for: cell.id) == nil else { return }
+        let hasPrimary = sessionManager.session(for: cell.id) != nil
+        let hasSplit = sessionManager.splitSession(for: cell.id) != nil
 
-        // Restore split if persisted
-        if let dirStr = cell.splitDirection {
+        // Restore split if persisted and not already alive
+        if let dirStr = cell.splitDirection, !hasSplit {
             let dir: SplitDirection = dirStr == "horizontal" ? .horizontal : .vertical
             let splitData = scrollbackManager.loadRaw(cellID: cell.id, sessionType: .split)
             let splitSession = sessionManager.createSplitSession(
@@ -772,15 +773,17 @@ struct ContentView: View {
             }
         }
 
-        // Create primary session
-        let primaryData = scrollbackManager.loadRaw(cellID: cell.id, sessionType: .primary)
-        let session = sessionManager.createSession(
-            for: cell.id, workingDirectory: cell.workingDirectory,
-            startImmediately: primaryData == nil
-        )
-        if let data = primaryData {
-            session.replayScrollback(data)
-            session.start()
+        // Create primary session only if not already alive
+        if !hasPrimary {
+            let primaryData = scrollbackManager.loadRaw(cellID: cell.id, sessionType: .primary)
+            let session = sessionManager.createSession(
+                for: cell.id, workingDirectory: cell.workingDirectory,
+                startImmediately: primaryData == nil
+            )
+            if let data = primaryData {
+                session.replayScrollback(data)
+                session.start()
+            }
         }
 
         // Restore explorer state
@@ -793,32 +796,24 @@ struct ContentView: View {
 
     private func switchWorkspace(to index: Int) {
         guard index != collection.activeIndex else { return }
-        // 1. Save scrollback for current workspace
+        // Save scrollback + sync split/explorer state (for app-restart persistence)
         store.saveScrollback()
-        // 2. Kill all sessions for current workspace cells
-        for cell in store.workspace.visibleCells {
-            sessionManager.killSession(for: cell.id)
-            sessionManager.killSplitSession(for: cell.id)
-        }
-        // 3. Clear UI states
+        // Clear UI states (per-view, not per-session)
         cellUIStates.removeAll()
         focusedCellID = nil
-        // 4. Switch
+        // Switch — sessions stay alive
         collection.switchToWorkspace(at: index)
-        // 5. Wire new store
+        sessionManager.synchronize(with: collection.workspaces)
         collection.activeStore.sessionManager = sessionManager
         collection.activeStore.cellUIStates = cellUIStates
     }
 
     private func createNewWorkspace() {
         store.saveScrollback()
-        for cell in store.workspace.visibleCells {
-            sessionManager.killSession(for: cell.id)
-            sessionManager.killSplitSession(for: cell.id)
-        }
         cellUIStates.removeAll()
         focusedCellID = nil
         collection.createWorkspace()
+        sessionManager.synchronize(with: collection.workspaces)
         collection.activeStore.sessionManager = sessionManager
         collection.activeStore.cellUIStates = cellUIStates
     }
@@ -827,14 +822,12 @@ struct ContentView: View {
         guard collection.workspaces.count > 1 else { return }
         let wasActive = index == collection.activeIndex
         if wasActive {
-            for cell in store.workspace.visibleCells {
-                sessionManager.killSession(for: cell.id)
-                sessionManager.killSplitSession(for: cell.id)
-            }
             cellUIStates.removeAll()
             focusedCellID = nil
         }
         collection.closeWorkspace(at: index)
+        // Kills sessions for cells that no longer exist in any workspace
+        sessionManager.synchronize(with: collection.workspaces)
         if wasActive {
             collection.activeStore.sessionManager = sessionManager
             collection.activeStore.cellUIStates = cellUIStates
@@ -843,13 +836,10 @@ struct ContentView: View {
 
     private func duplicateWorkspace(at index: Int) {
         store.saveScrollback()
-        for cell in store.workspace.visibleCells {
-            sessionManager.killSession(for: cell.id)
-            sessionManager.killSplitSession(for: cell.id)
-        }
         cellUIStates.removeAll()
         focusedCellID = nil
         _ = collection.duplicateWorkspace(at: index)
+        sessionManager.synchronize(with: collection.workspaces)
         collection.activeStore.sessionManager = sessionManager
         collection.activeStore.cellUIStates = cellUIStates
     }

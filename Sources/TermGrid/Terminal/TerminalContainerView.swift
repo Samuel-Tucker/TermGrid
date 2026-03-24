@@ -1,47 +1,43 @@
+import AppKit
 import SwiftUI
 import SwiftTerm
 
 struct TerminalContainerView: NSViewRepresentable {
     let session: TerminalSession
 
-    func makeNSView(context: Context) -> LocalProcessTerminalView {
-        let view = session.terminalView
-        view.processDelegate = context.coordinator
-        return view
+    func makeNSView(context: Context) -> TerminalHostView {
+        let hostView = TerminalHostView()
+        hostView.attach(session.terminalView)
+        return hostView
     }
 
-    func updateNSView(_ nsView: LocalProcessTerminalView, context: Context) {
-        // No-op: session identity changes handled via .id(session.sessionID) in parent
+    func updateNSView(_ nsView: TerminalHostView, context: Context) {
+        nsView.attach(session.terminalView)
     }
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(session: session)
+    static func dismantleNSView(_ nsView: TerminalHostView, coordinator: ()) {
+        nsView.detachHostedTerminalView()
+    }
+}
+
+final class TerminalHostView: NSView {
+    func attach(_ terminalView: LoggingTerminalView) {
+        if terminalView.superview !== self {
+            terminalView.removeFromSuperviewWithoutNeedingDisplay()
+            subviews.forEach { $0.removeFromSuperviewWithoutNeedingDisplay() }
+            addSubview(terminalView)
+            terminalView.frame = bounds
+            terminalView.autoresizingMask = [.width, .height]
+        }
+        terminalView.needsDisplay = true
     }
 
-    class Coordinator: NSObject, LocalProcessTerminalViewDelegate {
-        let session: TerminalSession
+    func detachHostedTerminalView() {
+        subviews.forEach { $0.removeFromSuperviewWithoutNeedingDisplay() }
+    }
 
-        init(session: TerminalSession) {
-            self.session = session
-        }
-
-        func processTerminated(source: TerminalView, exitCode: Int32?) {
-            Task { @MainActor in
-                session.isRunning = false
-                session.detectedAgent = nil
-            }
-        }
-
-        func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {
-            // No-op
-        }
-
-        func setTerminalTitle(source: LocalProcessTerminalView, title: String) {
-            // No-op
-        }
-
-        func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {
-            // No-op
-        }
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        super.resizeSubviews(withOldSize: oldSize)
+        subviews.first?.frame = bounds
     }
 }

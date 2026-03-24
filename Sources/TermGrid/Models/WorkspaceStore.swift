@@ -154,19 +154,17 @@ final class WorkspaceStore {
     func saveScrollback() {
         guard let sessionManager else { return }
 
-        for cell in workspace.visibleCells {
-            if let idx = workspace.cells.firstIndex(where: { $0.id == cell.id }) {
-                // Sync split direction from session manager
-                if let dir = sessionManager.splitDirection(for: cell.id) {
-                    workspace.cells[idx].splitDirection = dir == .horizontal ? "horizontal" : "vertical"
-                } else {
-                    workspace.cells[idx].splitDirection = nil
-                }
+        for (idx, cell) in workspace.cells.enumerated() {
+            // Sync split direction from session manager
+            if let dir = sessionManager.splitDirection(for: cell.id) {
+                workspace.cells[idx].splitDirection = dir == .horizontal ? "horizontal" : "vertical"
+            } else {
+                workspace.cells[idx].splitDirection = nil
+            }
 
-                // Sync showExplorer from CellUIState
-                if let uiState = cellUIStates?[cell.id] {
-                    workspace.cells[idx].showExplorer = uiState.bodyMode == .explorer
-                }
+            // Sync showExplorer from CellUIState
+            if let uiState = cellUIStates?[cell.id] {
+                workspace.cells[idx].showExplorer = uiState.bodyMode == .explorer
             }
 
             // Save primary scrollback (raw PTY bytes)

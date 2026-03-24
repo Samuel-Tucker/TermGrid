@@ -136,6 +136,19 @@ final class TerminalSessionManager {
         floatingSession = nil
     }
 
+    /// Kill only sessions whose cell no longer exists in any workspace.
+    /// Sessions for live cells survive workspace switches.
+    func synchronize(with workspaces: [Workspace]) {
+        let liveCellIDs = Set(workspaces.flatMap(\.cells).map(\.id))
+        let trackedCellIDs = Set(sessions.keys)
+            .union(splitSessions.keys)
+
+        for cellID in trackedCellIDs where !liveCellIDs.contains(cellID) {
+            killSession(for: cellID)
+            notificationStates.removeValue(forKey: cellID)
+        }
+    }
+
     func killAll() {
         for session in sessions.values { session.kill() }
         sessions.removeAll()

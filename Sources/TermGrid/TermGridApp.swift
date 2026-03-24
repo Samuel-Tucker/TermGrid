@@ -36,7 +36,7 @@ struct TermGridApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
-        Window("TermGrid v4", id: "main") {
+        Window("TermGrid V5", id: "main") {
             ContentView(collection: collection, sessionManager: sessionManager, vault: vault,
                         docsManager: docsManager,
                         completionEngine: completionEngine,
@@ -59,11 +59,11 @@ struct TermGridApp: App {
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .background || newPhase == .inactive {
-                        collection.flush()
+                        collection.flush(sessionManager: sessionManager)
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-                    collection.flush()
+                    collection.flush(sessionManager: sessionManager)
                     vault.lock()
                     sessionManager.killAll()
                     notificationSubsystem.server?.stop()

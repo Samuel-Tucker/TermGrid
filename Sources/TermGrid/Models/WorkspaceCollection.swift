@@ -146,10 +146,44 @@ final class WorkspaceCollection {
         }
     }
 
-    func flush() {
+    func flush(sessionManager: TerminalSessionManager? = nil) {
         saveTask?.cancel()
         saveTask = nil
+        // Flush active workspace scrollback (syncs split/explorer state too)
         activeStore.saveScrollback()
+        syncActiveStoreToArray()
+        // Flush background workspace sessions that are still alive
+        if let sessionManager {
+            for workspaceIndex in workspaces.indices where workspaceIndex != activeIndex {
+                for cellIndex in workspaces[workspaceIndex].cells.indices {
+                    let cellID = workspaces[workspaceIndex].cells[cellIndex].id
+
+                    // Sync split direction
+                    if let dir = sessionManager.splitDirection(for: cellID) {
+                        workspaces[workspaceIndex].cells[cellIndex].splitDirection =
+                            dir == .horizontal ? "horizontal" : "vertical"
+                    } else {
+                        workspaces[workspaceIndex].cells[cellIndex].splitDirection = nil
+                    }
+
+                    // Save primary scrollback
+                    if let session = sessionManager.session(for: cellID) {
+                        let data = session.getRawScrollback()
+                        if !data.isEmpty {
+                            try? scrollbackManager.saveRaw(cellID: cellID, sessionType: .primary, data: data)
+                        }
+                    }
+
+                    // Save split scrollback
+                    if let splitSession = sessionManager.splitSession(for: cellID) {
+                        let data = splitSession.getRawScrollback()
+                        if !data.isEmpty {
+                            try? scrollbackManager.saveRaw(cellID: cellID, sessionType: .split, data: data)
+                        }
+                    }
+                }
+            }
+        }
         persistCollection()
     }
 

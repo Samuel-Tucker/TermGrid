@@ -1,10 +1,11 @@
+import AppKit
 import Foundation
 import SwiftTerm
 import Observation
 
 @MainActor
 @Observable
-final class TerminalSession {
+final class TerminalSession: NSObject {
     let cellID: UUID
     let sessionID: UUID
     let sessionType: SessionType
@@ -34,6 +35,10 @@ final class TerminalSession {
         env.append("TERMGRID_CELL_ID=\(cellID.uuidString)")
         env.append("TERMGRID_SESSION_TYPE=\(sessionType.rawValue)")
         self.environment = env
+
+        super.init()
+
+        terminalView.processDelegate = self
 
         terminalView.nativeBackgroundColor = Theme.terminalBackground
         terminalView.nativeForegroundColor = Theme.terminalForeground
@@ -137,6 +142,13 @@ final class TerminalSession {
         return recent.joined(separator: "\n")
     }
 
+    /// Detach the terminal view from its superview without killing the session.
+    func detachTerminalView() {
+        if terminalView.superview != nil {
+            terminalView.removeFromSuperviewWithoutNeedingDisplay()
+        }
+    }
+
     func kill() {
         if isRunning {
             terminalView.terminate()
@@ -144,6 +156,21 @@ final class TerminalSession {
             detectedAgent = nil
         }
     }
+}
+
+// MARK: - Process Delegate (owned by session, survives view detach)
+
+extension TerminalSession: LocalProcessTerminalViewDelegate {
+    nonisolated func processTerminated(source: TerminalView, exitCode: Int32?) {
+        Task { @MainActor [weak self] in
+            self?.isRunning = false
+            self?.detectedAgent = nil
+        }
+    }
+
+    nonisolated func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
+    nonisolated func setTerminalTitle(source: LocalProcessTerminalView, title: String) {}
+    nonisolated func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
 }
 
 extension AgentType {
