@@ -16,6 +16,7 @@ struct NotesView: View {
     @State private var isCreating = false
     @State private var newNoteName = ""
     @State private var copiedPath: String? = nil
+    @State private var hoveredNoteID: String? = nil
     @FocusState private var editorFocused: Bool
     @FocusState private var newNoteFieldFocused: Bool
 
@@ -121,11 +122,16 @@ struct NotesView: View {
     private var notesList: some View {
         ScrollView {
             if sidebarNotesModel.notes.isEmpty && !isCreating {
-                Text("No notes yet")
-                    .font(.system(size: 11))
-                    .foregroundColor(Theme.composePlaceholder)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 8)
+                VStack(spacing: 4) {
+                    Text("No notes yet")
+                        .font(.system(size: 11))
+                        .foregroundColor(Theme.composePlaceholder)
+                    Text("Press + to create one")
+                        .font(.system(size: 10))
+                        .foregroundColor(Theme.composePlaceholder.opacity(0.6))
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, 8)
             } else {
                 LazyVStack(spacing: 3) {
                     ForEach(sidebarNotesModel.notes) { note in
@@ -139,24 +145,18 @@ struct NotesView: View {
     }
 
     private func notePill(_ note: SidebarNotesModel.NoteItem) -> some View {
-        HStack(spacing: 2) {
+        let isHovered = hoveredNoteID == note.id
+        return HStack(spacing: 2) {
+            Image(systemName: "doc.text")
+                .font(.system(size: 9))
+                .foregroundColor(isHovered ? Theme.accent : Theme.notesSecondary)
+
             Text(note.name)
                 .font(.system(size: 11))
                 .foregroundColor(Theme.notesText)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Edit button
-            Button {
-                onEditNote?(note.path)
-            } label: {
-                Image(systemName: "pencil")
-                    .font(.system(size: 9))
-                    .foregroundColor(Theme.notesSecondary)
-                    .frame(width: 18, height: 18)
-            }
-            .buttonStyle(.plain)
 
             // Copy path button
             Button {
@@ -179,9 +179,12 @@ struct NotesView: View {
         }
         .padding(.horizontal, 6)
         .frame(height: 28)
+        .contentShape(Rectangle())
+        .onTapGesture { onEditNote?(note.path) }
+        .onHover { hovering in hoveredNoteID = hovering ? note.id : nil }
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(Theme.cellBackground.opacity(0.5))
+                .fill(isHovered ? Theme.cellBackground.opacity(0.8) : Theme.cellBackground.opacity(0.5))
         )
     }
 
